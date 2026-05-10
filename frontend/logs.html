@@ -1,0 +1,256 @@
+<!doctype html>
+<html>
+  <head>
+    <title>BlindTaste — Logs</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+    <link rel="stylesheet" href="assets/css/main.css" />
+    <style>
+      html                { font-size: 13pt; }
+      #nav                { height: 2.75rem; line-height: 2.75rem; max-width: 72rem; }
+      #nav ul.links       { justify-content: center; }
+      #nav ul.links li a  { padding: 0 1.25rem; font-size: 0.72rem; }
+      #main               { max-width: 72rem; }
+      #main > *           { padding: 2rem 3rem 1.5rem 3rem; }
+
+      /* Controls row */
+      .log-controls {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+        flex-wrap: wrap;
+      }
+      .log-controls label { font-size: 0.85rem; color: #555; margin: 0; }
+      .log-controls select { width: auto; margin: 0; }
+      #log-count { font-size: 0.8rem; color: #999; margin-left: auto; }
+
+      /* Table */
+      .log-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.78rem;
+      }
+      .log-table th {
+        text-align: left;
+        padding: 0.5rem 0.75rem;
+        background: #1e252d;
+        color: #fff;
+        font-family: "Source Sans Pro", sans-serif;
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        font-size: 0.65rem;
+        white-space: nowrap;
+      }
+      .log-table td {
+        padding: 0.55rem 0.75rem;
+        border-bottom: 1px solid #eee;
+        vertical-align: top;
+        color: #444;
+      }
+      .log-table tr:hover td { background: #f9f9f9; }
+
+      .badge {
+        display: inline-block;
+        padding: 0.1rem 0.4rem;
+        border-radius: 3px;
+        font-size: 0.65rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        font-family: "Source Sans Pro", sans-serif;
+      }
+      .badge-label   { background: #18bfef22; color: #0a7ea3; }
+      .badge-flavor  { background: #8b5cf622; color: #6d28d9; }
+
+      .input-pills { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+      .pill {
+        background: #f0f0f0;
+        border-radius: 3px;
+        padding: 0.1rem 0.4rem;
+        font-size: 0.7rem;
+        color: #555;
+        white-space: nowrap;
+      }
+      .pill strong { color: #1e252d; }
+
+      .recs-list { list-style: none; margin: 0; padding: 0; }
+      .recs-list li {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        margin-bottom: 0.2rem;
+        font-size: 0.75rem;
+        color: #444;
+      }
+      .rec-rank {
+        font-weight: 700;
+        color: #1e252d;
+        min-width: 1.2rem;
+      }
+      .rec-sim {
+        margin-left: auto;
+        color: #18bfef;
+        font-weight: 700;
+        white-space: nowrap;
+      }
+
+      .empty-state { text-align: center; padding: 3rem 0; color: #bbb; font-style: italic; }
+      #error-msg   { color: #f56a6a; font-size: 0.85rem; display: none; }
+    </style>
+  </head>
+  <body>
+    <div id="wrapper">
+
+      <!-- Nav -->
+      <nav id="nav">
+        <ul class="links">
+          <li><a href="about.html">About</a></li>
+          <li><a href="label_input.html">Label Input</a></li>
+          <li><a href="flavor_input.html">Flavor Profile Input</a></li>
+          <li class="active"><a href="logs.html">Logs</a></li>
+        </ul>
+      </nav>
+
+      <!-- Main -->
+      <div id="main">
+        <article>
+          <header class="major">
+            <h2 style="font-size:1.3rem;margin-bottom:0.5rem">Recommendation Logs</h2>
+            <p style="font-size:0.85rem">Every request made to the engine — most recent first.</p>
+          </header>
+
+          <div class="log-controls">
+            <label for="limit-select">Show last</label>
+            <select id="limit-select">
+              <option value="25">25</option>
+              <option value="50" selected>50</option>
+              <option value="100">100</option>
+              <option value="200">200</option>
+            </select>
+            <button class="button small" onclick="loadLogs()">Refresh</button>
+            <span id="log-count"></span>
+          </div>
+
+          <p id="error-msg">Could not reach the API. Make sure the server is running on port 5000.</p>
+
+          <div id="logs-container">
+            <div class="empty-state">Loading…</div>
+          </div>
+        </article>
+      </div>
+
+    </div><!-- /wrapper -->
+
+    <script>
+      const API_BASE = "http://localhost:5000";
+
+      function bodyLabel(v) {
+        if (v < 1.5) return "Very Light";
+        if (v < 2.5) return "Light";
+        if (v < 3.5) return "Medium";
+        if (v < 4.5) return "Full";
+        return "Very Full";
+      }
+      function acidityLabel(v) {
+        if (v < 1.67) return "Low";
+        if (v < 2.33) return "Medium";
+        return "High";
+      }
+
+      function formatTimestamp(ts) {
+        try {
+          const d = new Date(ts);
+          return d.toLocaleString();
+        } catch { return ts; }
+      }
+
+      function buildInputPills(mode, input) {
+        const pills = [];
+        if (mode === "label") {
+          if (input.wine_type)  pills.push(`<span class="pill"><strong>Type:</strong> ${input.wine_type}</span>`);
+          if (input.main_grape) pills.push(`<span class="pill"><strong>Grape:</strong> ${input.main_grape}</span>`);
+          if (input.alcohol)    pills.push(`<span class="pill"><strong>ABV:</strong> ${input.alcohol}%</span>`);
+          if (input.acidity != null) pills.push(`<span class="pill"><strong>Acidity:</strong> ${acidityLabel(input.acidity)}</span>`);
+          if (input.body != null)    pills.push(`<span class="pill"><strong>Body:</strong> ${bodyLabel(input.body)}</span>`);
+        } else {
+          if (input.wine_type)    pills.push(`<span class="pill"><strong>Type:</strong> ${input.wine_type}</span>`);
+          if (input.body != null)         pills.push(`<span class="pill"><strong>Body:</strong> ${bodyLabel(input.body)}</span>`);
+          if (input.acidity != null)      pills.push(`<span class="pill"><strong>Acidity:</strong> ${acidityLabel(input.acidity)}</span>`);
+          if (input.alcohol != null)      pills.push(`<span class="pill"><strong>ABV:</strong> ${input.alcohol}%</span>`);
+          if (input.food_pairing) pills.push(`<span class="pill"><strong>Pairing:</strong> ${input.food_pairing}</span>`);
+        }
+        return `<div class="input-pills">${pills.join("")}</div>`;
+      }
+
+      function buildRecsList(recs) {
+        if (!recs || recs.length === 0) return '<span style="color:#bbb">—</span>';
+        const items = recs.map(r => {
+          const sim = r.similarity_percentage != null ? `${r.similarity_percentage.toFixed(1)}%` : "—";
+          return `<li>
+            <span class="rec-rank">#${r.rank}</span>
+            <span>${r.grape_name} <span style="color:#aaa;font-size:0.7rem">${r.wine_type}</span></span>
+            <span class="rec-sim">${sim}</span>
+          </li>`;
+        }).join("");
+        return `<ul class="recs-list">${items}</ul>`;
+      }
+
+      async function loadLogs() {
+        const limit = document.getElementById("limit-select").value;
+        const errorEl = document.getElementById("error-msg");
+        const container = document.getElementById("logs-container");
+        errorEl.style.display = "none";
+        container.innerHTML = '<div class="empty-state">Loading…</div>';
+
+        try {
+          const res  = await fetch(`${API_BASE}/api/logs?limit=${limit}`);
+          const data = await res.json();
+
+          document.getElementById("log-count").textContent =
+            `${data.total} entr${data.total === 1 ? "y" : "ies"}`;
+
+          if (!data.logs || data.logs.length === 0) {
+            container.innerHTML = '<div class="empty-state">No logs yet.</div>';
+            return;
+          }
+
+          const rows = data.logs.map(log => {
+            const modeBadge = log.input_mode === "label"
+              ? '<span class="badge badge-label">Label</span>'
+              : '<span class="badge badge-flavor">Flavor</span>';
+
+            return `
+              <tr>
+                <td style="color:#aaa;font-size:0.7rem">#${log.id}</td>
+                <td style="white-space:nowrap">${formatTimestamp(log.timestamp)}</td>
+                <td>${modeBadge}</td>
+                <td>${buildInputPills(log.input_mode, log.user_input)}</td>
+                <td>${buildRecsList(log.recommendations)}</td>
+              </tr>`;
+          }).join("");
+
+          container.innerHTML = `
+            <table class="log-table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Time</th>
+                  <th>Mode</th>
+                  <th>Input</th>
+                  <th>Recommendations</th>
+                </tr>
+              </thead>
+              <tbody>${rows}</tbody>
+            </table>`;
+        } catch {
+          container.innerHTML = "";
+          errorEl.style.display = "block";
+        }
+      }
+
+      loadLogs();
+    </script>
+  </body>
+</html>

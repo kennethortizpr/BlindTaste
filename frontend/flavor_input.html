@@ -1,0 +1,233 @@
+<!doctype html>
+<html>
+  <head>
+    <title>BlindTaste — Flavor Profile Input</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+    <link rel="stylesheet" href="assets/css/main.css" />
+    <noscript><link rel="stylesheet" href="assets/css/noscript.css" /></noscript>
+    <style>
+      html                  { font-size: 13pt; }
+      #nav                  { height: 2.75rem; line-height: 2.75rem; max-width: 54rem; }
+      #nav ul.links         { justify-content: center; }
+      #nav ul.links li a    { padding: 0 1.25rem; font-size: 0.72rem; }
+      #main                 { max-width: 54rem; }
+      #main > *             { padding: 2rem 3rem 1.5rem 3rem; }
+      #intro                { min-height: 100vh; padding: 4rem 3rem 3rem 3rem; justify-content: center; }
+      #intro h1             { font-size: 4rem; letter-spacing: 0.1em; }
+    </style>
+  </head>
+  <body class="is-preload">
+    <div id="wrapper" class="fade-in">
+
+      <!-- Intro -->
+      <div id="intro">
+        <h1>Flavor<br />Mode</h1>
+        <ul class="actions">
+          <li>
+            <a href="#nav" class="button icon solid solo fa-arrow-down scrolly">Continue</a>
+          </li>
+        </ul>
+      </div>
+
+      <!-- Nav -->
+      <nav id="nav">
+        <ul class="links">
+          <li><a href="about.html">About</a></li>
+          <li><a href="label_input.html">Label Input</a></li>
+          <li class="active"><a href="flavor_input.html">Flavor Profile Input</a></li>
+        </ul>
+      </nav>
+
+      <!-- Main -->
+      <div id="main">
+        <article>
+          <header class="major">
+            <p>
+              Describe the taste profile you are looking for — no specific wine
+              needed. All fields are optional, but at least one must be filled in.
+              BlindTaste will return the 5 grape varieties that best match your
+              preferences.
+            </p>
+          </header>
+
+          <form id="flavor-form">
+
+            <div class="col-12">
+              <h3>Wine Type</h3>
+              <select id="wine_type" name="wine_type">
+                <option value="">— Any type —</option>
+              </select>
+            </div>
+
+            <hr />
+
+            <div class="col-12">
+              <h3>Body</h3>
+              <select id="body" name="body">
+                <option value="">— Any Body —</option>
+                <option value="1">Very Light-bodied</option>
+                <option value="2">Light-bodied</option>
+                <option value="3">Medium-bodied</option>
+                <option value="4">Full-bodied</option>
+                <option value="5">Very Full-bodied</option>
+              </select>
+            </div>
+
+            <hr />
+
+            <div class="col-12">
+              <h3>Acidity</h3>
+              <select id="acidity" name="acidity">
+                <option value="">— Any Acidity —</option>
+                <option value="1">Low</option>
+                <option value="2">Medium</option>
+                <option value="3">High</option>
+              </select>
+            </div>
+
+            <hr />
+
+            <div class="col-12">
+              <h3>Alcohol %</h3>
+              <input
+                type="number"
+                id="alcohol"
+                name="alcohol"
+                min="8"
+                max="16"
+                step="0.1"
+                placeholder="e.g. 13.5"
+                style="width:5rem"
+              />
+            </div>
+
+            <hr />
+
+            <div class="col-12">
+              <h3>Food Pairing</h3>
+              <select id="food_pairing" name="food_pairing">
+                <option value="">— Any pairing —</option>
+              </select>
+            </div>
+
+            <hr />
+
+            <div id="form-error" style="color:#f56a6a;display:none;margin-bottom:1em"></div>
+
+            <div class="col-12">
+              <ul class="actions">
+                <li><input type="submit" value="Get Recommendations" class="primary" /></li>
+                <li><input type="reset" value="Reset" /></li>
+              </ul>
+            </div>
+
+          </form>
+        </article>
+      </div>
+
+    </div><!-- /wrapper -->
+
+    <script src="assets/js/jquery.min.js"></script>
+    <script src="assets/js/jquery.scrollex.min.js"></script>
+    <script src="assets/js/jquery.scrolly.min.js"></script>
+    <script src="assets/js/browser.min.js"></script>
+    <script src="assets/js/breakpoints.min.js"></script>
+    <script src="assets/js/util.js"></script>
+    <script src="assets/js/main.js"></script>
+
+    <script>
+      const API_BASE = "http://localhost:5000";
+
+      async function loadWineTypes() {
+        try {
+          const res  = await fetch(`${API_BASE}/api/wine-types`);
+          const data = await res.json();
+          const sel  = document.getElementById("wine_type");
+          data.wine_types.forEach(t => {
+            const opt = document.createElement("option");
+            opt.value = t;
+            opt.textContent = t;
+            sel.appendChild(opt);
+          });
+        } catch { /* keep default "Any type" option */ }
+      }
+
+      async function loadFoodPairings(wineType) {
+        const sel = document.getElementById("food_pairing");
+        const currentValue = sel.value;
+        sel.innerHTML = '<option value="">— Any pairing —</option>';
+        try {
+          const url  = wineType
+            ? `${API_BASE}/api/food-pairings?wine_type=${encodeURIComponent(wineType)}`
+            : `${API_BASE}/api/food-pairings`;
+          const res  = await fetch(url);
+          const data = await res.json();
+          data.food_pairings.forEach(p => {
+            const opt = document.createElement("option");
+            opt.value = p;
+            opt.textContent = p;
+            sel.appendChild(opt);
+          });
+          // Restore previous selection if it still exists in the new list
+          if ([...sel.options].some(o => o.value === currentValue)) {
+            sel.value = currentValue;
+          }
+        } catch { /* keep default "Any pairing" option */ }
+      }
+
+      document.getElementById("wine_type").addEventListener("change", function () {
+        loadFoodPairings(this.value);
+      });
+
+      document.getElementById("flavor-form").addEventListener("submit", async e => {
+        e.preventDefault();
+        const errorEl     = document.getElementById("form-error");
+        const wine_type    = document.getElementById("wine_type").value;
+        const body         = document.getElementById("body").value;
+        const acidity      = document.getElementById("acidity").value;
+        const alcohol      = document.getElementById("alcohol").value;
+        const food_pairing = document.getElementById("food_pairing").value;
+
+        errorEl.style.display = "none";
+
+        if (!wine_type && !body && !acidity && !alcohol && !food_pairing) {
+          errorEl.textContent = "Please fill in at least one field.";
+          errorEl.style.display = "block";
+          return;
+        }
+
+        const payload = {};
+        if (wine_type)    payload.wine_type    = wine_type;
+        if (body)         payload.body         = parseFloat(body);
+        if (acidity)      payload.acidity      = parseFloat(acidity);
+        if (alcohol)      payload.alcohol      = parseFloat(alcohol);
+        if (food_pairing) payload.food_pairing = food_pairing;
+
+        try {
+          const res  = await fetch(`${API_BASE}/api/recommend/flavor`, {
+            method:  "POST",
+            headers: { "Content-Type": "application/json" },
+            body:    JSON.stringify(payload),
+          });
+          const data = await res.json();
+          if (!res.ok) {
+            errorEl.textContent = `Error: ${data.error}`;
+            errorEl.style.display = "block";
+            return;
+          }
+          localStorage.setItem("bt_results",    JSON.stringify(data.results));
+          localStorage.setItem("bt_input_mode", "flavor_profile");
+          localStorage.setItem("bt_input",      JSON.stringify(payload));
+          window.location.href = "results.html";
+        } catch {
+          errorEl.textContent = "Could not reach the server. Make sure the API is running on port 5000.";
+          errorEl.style.display = "block";
+        }
+      });
+
+      loadWineTypes();
+      loadFoodPairings("");
+    </script>
+  </body>
+</html>

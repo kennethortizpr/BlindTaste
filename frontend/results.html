@@ -1,0 +1,248 @@
+<!doctype html>
+<html>
+  <head>
+    <title>BlindTaste — Results</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+    <link rel="stylesheet" href="assets/css/main.css" />
+    <style>
+      html                { font-size: 13pt; }
+      #nav                { height: 2.75rem; line-height: 2.75rem; max-width: 54rem; }
+      #nav ul.links       { justify-content: center; }
+      #nav ul.links li a  { padding: 0 1.25rem; font-size: 0.72rem; }
+      #main               { max-width: 54rem; }
+      #main > *           { padding: 2rem 3rem 1.5rem 3rem; }
+
+      /* Input summary banner */
+      .input-summary {
+        background: #f5f5f5;
+        border-left: 3px solid #18bfef;
+        padding: 0.75rem 1rem;
+        margin-bottom: 2rem;
+        font-size: 0.85rem;
+        color: #555;
+        border-radius: 0 3px 3px 0;
+      }
+      .input-summary strong { color: #1e252d; }
+
+      /* Result cards */
+      .result-card {
+        display: flex;
+        gap: 1.25rem;
+        padding: 1.25rem;
+        border: 1px solid #e8e8e8;
+        border-radius: 4px;
+        margin-bottom: 1.25rem;
+        background: #fafafa;
+      }
+      .result-card:first-of-type { border-left: 3px solid #18bfef; }
+
+      .result-left {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        min-width: 3.5rem;
+        padding-top: 0.2rem;
+      }
+      .result-rank {
+        font-size: 1.6rem;
+        font-weight: 900;
+        color: #1e252d;
+        line-height: 1;
+      }
+      .result-rank span { font-size: 0.7rem; font-weight: 400; display: block; color: #999; }
+      .result-sim {
+        margin-top: 0.5rem;
+        font-size: 0.9rem;
+        font-weight: 700;
+        color: #18bfef;
+        text-align: center;
+      }
+      .sim-bar-bg {
+        width: 3rem;
+        height: 4px;
+        background: #ddd;
+        border-radius: 2px;
+        margin-top: 4px;
+      }
+      .sim-bar-fill {
+        height: 4px;
+        background: #18bfef;
+        border-radius: 2px;
+      }
+
+      .result-right { flex: 1; min-width: 0; }
+      .result-header {
+        display: flex;
+        align-items: baseline;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin-bottom: 0.4rem;
+      }
+      .result-grape { font-size: 1rem; font-weight: 700; color: #1e252d; margin: 0; }
+      .result-type {
+        display: inline-block;
+        padding: 0.1rem 0.45rem;
+        background: #1e252d;
+        color: #fff;
+        border-radius: 3px;
+        font-size: 0.65rem;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        font-family: "Source Sans Pro", sans-serif;
+        font-weight: 900;
+      }
+      .result-description {
+        font-size: 0.8rem;
+        color: #666;
+        margin: 0.3rem 0 0.6rem 0;
+        line-height: 1.5;
+        font-style: italic;
+      }
+      .result-stats {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1rem;
+        font-size: 0.78rem;
+        color: #555;
+        margin-bottom: 0.5rem;
+      }
+      .result-stats span::before { font-weight: 700; color: #1e252d; }
+      .result-pairings {
+        font-size: 0.75rem;
+        color: #888;
+        line-height: 1.5;
+      }
+      .result-pairings strong { color: #555; }
+
+      /* No-results / error state */
+      .empty-state { text-align: center; padding: 3rem 0; color: #aaa; }
+
+      /* Back button row */
+      .back-row { margin-top: 1rem; }
+    </style>
+  </head>
+  <body>
+    <div id="wrapper">
+
+      <!-- Nav -->
+      <nav id="nav">
+        <ul class="links">
+          <li><a href="about.html">About</a></li>
+          <li><a href="label_input.html">Label Input</a></li>
+          <li><a href="flavor_input.html">Flavor Profile Input</a></li>
+        </ul>
+      </nav>
+
+      <!-- Main -->
+      <div id="main">
+        <article>
+          <header class="major">
+            <h2 style="font-size:1.3rem;margin-bottom:0.5rem">Your Recommendations</h2>
+          </header>
+
+          <div id="input-summary" class="input-summary"></div>
+          <div id="results-container"></div>
+
+          <div class="back-row">
+            <ul class="actions">
+              <li><a id="back-btn" href="about.html" class="button">Search Again</a></li>
+            </ul>
+          </div>
+        </article>
+      </div>
+
+    </div><!-- /wrapper -->
+
+    <script>
+      function bodyLabel(v) {
+        if (v < 1.5) return "Very Light-bodied";
+        if (v < 2.5) return "Light-bodied";
+        if (v < 3.5) return "Medium-bodied";
+        if (v < 4.5) return "Full-bodied";
+        return "Very Full-bodied";
+      }
+      function acidityLabel(v) {
+        if (v < 1.67) return "Low";
+        if (v < 2.33) return "Medium";
+        return "High";
+      }
+
+      function buildInputSummary(mode, input) {
+        const parts = [];
+        if (mode === "label") {
+          parts.push(`<strong>Mode:</strong> Label Input`);
+          if (input.wine_type)  parts.push(`<strong>Type:</strong> ${input.wine_type}`);
+          if (input.main_grape) parts.push(`<strong>Grape (excluded):</strong> ${input.main_grape}`);
+          if (input.alcohol)    parts.push(`<strong>ABV:</strong> ${input.alcohol}%`);
+          if (input.acidity)    parts.push(`<strong>Acidity:</strong> ${acidityLabel(input.acidity)}`);
+          if (input.body)       parts.push(`<strong>Body:</strong> ${bodyLabel(input.body)}`);
+        } else {
+          parts.push(`<strong>Mode:</strong> Flavor Profile`);
+          if (input.wine_type)    parts.push(`<strong>Type:</strong> ${input.wine_type}`);
+          if (input.body)         parts.push(`<strong>Body:</strong> ${bodyLabel(input.body)}`);
+          if (input.acidity)      parts.push(`<strong>Acidity:</strong> ${acidityLabel(input.acidity)}`);
+          if (input.alcohol)      parts.push(`<strong>ABV:</strong> ${input.alcohol}%`);
+          if (input.food_pairing) parts.push(`<strong>Pairing:</strong> ${input.food_pairing}`);
+        }
+        return parts.join(" &nbsp;·&nbsp; ");
+      }
+
+      function buildCard(r) {
+        const sim = r.similarity_percentage != null ? r.similarity_percentage : null;
+        const simHtml = sim != null
+          ? `<div class="result-sim">${sim}%</div>
+             <div class="sim-bar-bg"><div class="sim-bar-fill" style="width:${sim}%"></div></div>`
+          : "";
+
+        const pairings = r.food_pairings
+          ? r.food_pairings.split(", ").slice(0, 8).join(", ") + (r.food_pairings.split(", ").length > 8 ? "…" : "")
+          : "—";
+
+        return `
+          <div class="result-card">
+            <div class="result-left">
+              <div class="result-rank">#${r.rank}<span>match</span></div>
+              ${simHtml}
+            </div>
+            <div class="result-right">
+              <div class="result-header">
+                <h3 class="result-grape">${r.grape_name}</h3>
+                <span class="result-type">${r.wine_type}</span>
+              </div>
+              <p class="result-description">${r.description || ""}</p>
+              <div class="result-stats">
+                <span><strong>Body:</strong> ${bodyLabel(r.avg_body)} (${r.avg_body.toFixed(1)})</span>
+                <span><strong>Acidity:</strong> ${acidityLabel(r.avg_acidity)} (${r.avg_acidity.toFixed(1)})</span>
+                <span><strong>ABV:</strong> ${r.avg_alcohol.toFixed(1)}%</span>
+              </div>
+              <div class="result-pairings"><strong>Pairs with:</strong> ${pairings}</div>
+            </div>
+          </div>`;
+      }
+
+      // Read from localStorage
+      const rawResults = localStorage.getItem("bt_results");
+      const inputMode  = localStorage.getItem("bt_input_mode") || "label";
+      const rawInput   = localStorage.getItem("bt_input");
+
+      if (!rawResults) {
+        document.getElementById("results-container").innerHTML =
+          '<div class="empty-state"><p>No results found. Please submit a search first.</p></div>';
+        document.getElementById("input-summary").style.display = "none";
+      } else {
+        const results = JSON.parse(rawResults);
+        const input   = rawInput ? JSON.parse(rawInput) : {};
+
+        document.getElementById("input-summary").innerHTML = buildInputSummary(inputMode, input);
+
+        const backBtn = document.getElementById("back-btn");
+        backBtn.href = inputMode === "label" ? "label_input.html" : "flavor_input.html";
+        backBtn.textContent = "Search Again";
+
+        document.getElementById("results-container").innerHTML =
+          results.map(buildCard).join("");
+      }
+    </script>
+  </body>
+</html>
