@@ -324,21 +324,16 @@ TESINA/
 │   └── blindtaste.db                   # SQLite database (committed to repo)
 ├── frontend/
 │   ├── about.html         # Landing page
-│   ├── label_input.html   # Label Input form (wired to API)
-│   ├── flavor_input.html  # Flavor Profile Input form (wired to API)
+│   ├── label_input.html   # Label Input form
+│   ├── flavor_input.html  # Flavor Profile Input form 
 │   ├── results.html       # Results page (reads localStorage, renders top-5 cards)
-│   ├── logs.html          # Admin logs page (fetches /api/logs)
+│   ├── logs.html          # Logs page
 │   ├── assets/            # CSS, JS, fonts
 │   └── images/
-│       ├── backgrounds/   # bg.jpg, overlay.png, pic02-pic09.jpg
-│       ├── extra/         # pic01.jpg (wine glass photo)
-│       └── grapes/        # per-grape variety images (57 files, unused for now)
-├── venv/                  # Python virtual environment (local, gitignored)
-├── index.html             # Root redirect → frontend/about.html (for GitHub Pages)
-├── Procfile               # Render start command: gunicorn --chdir backend api:app
-├── requirements.txt       # Python dependencies (flask, flask-cors, sqlalchemy, pandas, openpyxl, gunicorn)
-├── .gitignore             # Ignores venv/, __pycache__/, .pyc, etc.
-└── context.md             # This file
+│       ├── backgrounds/   
+│       ├── extra/        
+│       └── grapes/        # per-grape variety images 
+└── index.html             # Root redirect → frontend/about.html (for GitHub Pages)
 ```
 
 ---
