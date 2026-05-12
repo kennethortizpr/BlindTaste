@@ -8,15 +8,18 @@
     <noscript><link rel="stylesheet" href="assets/css/noscript.css" /></noscript>
     <style>
       html                  { font-size: 13pt; }
-      #nav                  { height: 2.75rem; line-height: 2.75rem; max-width: 54rem; }
+      #nav                  { height: 2.75rem; line-height: 2.75rem; margin: 0 5rem; transition: margin 0.25s ease, background 0.25s ease; }
       #nav ul.links         { justify-content: center; }
       #nav ul.links li a    { padding: 0 1.25rem; font-size: 0.72rem; }
-      #main                 { max-width: 54rem; }
+      #nav.stuck            { position: fixed; top: 0; left: 0; right: 0; margin: 0; z-index: 10000; background: #1e252d; }
+      #main                 { margin: 0 5rem; }
       #main > *             { padding: 2rem 3rem 1.5rem 3rem; }
       #main > .post         { padding: 2rem 3rem 1.5rem 3rem; }
       #intro                { min-height: 100vh; padding: 4rem 3rem 3rem 3rem; justify-content: center; }
       #intro h1             { font-size: 4rem; letter-spacing: 0.1em; }
       #main > .post header.major h2  { font-size: 2.5rem !important; }
+      #main > .post header.major p   { max-width: 30rem; margin-left: auto; margin-right: auto; }
+      .image.main           { max-width: 55%; display: block; margin: 0 auto; }
     </style>
   </head>
   <body class="is-preload">
@@ -38,6 +41,7 @@
           <li class="active"><a href="about.html">About</a></li>
           <li><a href="label_input.html">Label Input</a></li>
           <li><a href="flavor_input.html">Flavor Profile Input</a></li>
+          <li><a href="logs.html">Logs</a></li>
         </ul>
       </nav>
 
@@ -54,6 +58,48 @@
           </header>
           <a href="#" class="image main"><img src="images/extra/pic01.jpg" alt="" /></a>
         </article>
+
+        <article>
+          <h3>How It Works</h3>
+          <p>
+            BlindTaste uses <strong>content-based filtering</strong>. Every grape variety in the
+            database is represented as a <em>centroid</em> — the mean alcohol content, body, and
+            acidity computed across all wines of that variety. When you submit a query, the engine
+            normalizes your input to a [0, 1] scale and computes the <strong>Euclidean distance</strong>
+            between your profile and each centroid.
+          </p>
+          <p>
+            Only the features you actually provide are used — if you leave acidity blank, the
+            distance is computed over fewer dimensions rather than substituting a default value.
+            The distance is then converted to a similarity percentage using the formula
+            <code>similarity = max(0, (1 − d / √n) × 100)</code>, where <em>n</em> is the number
+            of features provided. The five closest grape varieties are returned, ranked by similarity.
+          </p>
+          <p>
+            The system offers two modes: <strong>Label Input</strong> takes details read off a wine
+            label and finds similar-but-<em>different</em> grape varieties, explicitly excluding the
+            input grape from the results. <strong>Flavor Profile</strong> lets you describe the taste
+            you want from scratch, with no specific wine in mind.
+          </p>
+        </article>
+
+        <article>
+          <h3>The Dataset</h3>
+          <p>
+            The recommendation engine is built on a curated subset of the
+            <strong>XWines</strong> dataset, which covers over 100,000 wines from around the world.
+            Only single-grape (<em>varietal</em>) wines are included — blended wines were excluded
+            to avoid ambiguous grape attribution, since the first-listed grape in a blend is not
+            always the dominant one.
+          </p>
+          <p>
+            After filtering, <strong>72,496 varietal wines</strong> were retained. Grape–type
+            combinations with fewer than 50 wines were then removed, as these correspond almost
+            exclusively to highly obscure, regionally rare varieties that are practically
+            unobtainable. The final database contains <strong>144 grape–type combinations</strong>
+            spanning Red, White, Rosé, Sparkling, Dessert, and Dessert Port categories.
+          </p>
+        </article>
       </div>
 
     </div><!-- /wrapper -->
@@ -65,5 +111,6 @@
     <script src="assets/js/breakpoints.min.js"></script>
     <script src="assets/js/util.js"></script>
     <script src="assets/js/main.js"></script>
+    <script src="assets/js/nav-sticky.js"></script>
   </body>
 </html>

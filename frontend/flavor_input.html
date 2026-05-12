@@ -8,11 +8,14 @@
     <noscript><link rel="stylesheet" href="assets/css/noscript.css" /></noscript>
     <style>
       html                  { font-size: 13pt; }
-      #nav                  { height: 2.75rem; line-height: 2.75rem; max-width: 54rem; }
+      #nav                  { height: 2.75rem; line-height: 2.75rem; margin: 0 1.5rem; transition: margin 0.25s ease, background 0.25s ease; }
       #nav ul.links         { justify-content: center; }
       #nav ul.links li a    { padding: 0 1.25rem; font-size: 0.72rem; }
-      #main                 { max-width: 54rem; }
+      #nav.stuck            { position: fixed; top: 0; left: 0; right: 0; margin: 0; z-index: 10000; background: #1e252d; }
+      #main                 { margin: 0 1.5rem; }
       #main > *             { padding: 2rem 3rem 1.5rem 3rem; }
+      #main header.major p  { max-width: 30rem; margin-left: auto; margin-right: auto; }
+      #main select          { max-width: 22rem; }
       #intro                { min-height: 100vh; padding: 4rem 3rem 3rem 3rem; justify-content: center; }
       #intro h1             { font-size: 4rem; letter-spacing: 0.1em; }
     </style>
@@ -36,6 +39,7 @@
           <li><a href="about.html">About</a></li>
           <li><a href="label_input.html">Label Input</a></li>
           <li class="active"><a href="flavor_input.html">Flavor Profile Input</a></li>
+          <li><a href="logs.html">Logs</a></li>
         </ul>
       </nav>
 
@@ -50,6 +54,10 @@
               preferences.
             </p>
           </header>
+
+          <div id="server-status" style="display:none;background:#fff8e1;border-left:3px solid #ffc107;padding:0.65rem 1rem;margin-bottom:1.5rem;font-size:0.83rem;color:#7a5c00;border-radius:0 3px 3px 0;">
+            Waking up the server, this may take a moment…
+          </div>
 
           <form id="flavor-form">
 
@@ -139,9 +147,15 @@
     <script>
       const API_BASE = "https://blindtaste.onrender.com";
 
+      const _wakeupTimer = setTimeout(() => {
+        document.getElementById('server-status').style.display = 'block';
+      }, 4000);
+
       async function loadWineTypes() {
         try {
           const res  = await fetch(`${API_BASE}/api/wine-types`);
+          clearTimeout(_wakeupTimer);
+          document.getElementById('server-status').style.display = 'none';
           const data = await res.json();
           const sel  = document.getElementById("wine_type");
           data.wine_types.forEach(t => {
@@ -150,7 +164,10 @@
             opt.textContent = t;
             sel.appendChild(opt);
           });
-        } catch { /* keep default "Any type" option */ }
+        } catch {
+          clearTimeout(_wakeupTimer);
+          document.getElementById('server-status').style.display = 'none';
+        }
       }
 
       async function loadFoodPairings(wineType) {
@@ -229,5 +246,6 @@
       loadWineTypes();
       loadFoodPairings("");
     </script>
+    <script src="assets/js/nav-sticky.js"></script>
   </body>
 </html>

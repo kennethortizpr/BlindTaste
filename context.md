@@ -15,6 +15,8 @@
 1. **Label Input** — user enters what they read on a wine's label to find *similar but different* grape varieties.
 2. **Flavor Profile Input** — user describes the taste profile they want, regardless of any specific wine.
 
+**Current status:** **deployed to production**. Frontend on GitHub Pages, backend on Render. See §14.
+
 ---
 
 ## 2. Technology Stack
@@ -22,14 +24,17 @@
 | Layer | Choice | Rationale |
 |-------|--------|-----------|
 | Backend language | Python | Rich data/ML ecosystem, fast prototyping |
-| Database | SQLite | Small catalog (~309 rows), serverless, portable, read-heavy workload |
+| Database | SQLite | Small catalog (~144 rows), serverless, portable, read-heavy workload |
 | ORM | SQLAlchemy | Portability (can migrate DB later), cleaner models, safer than raw SQL |
 | Data manipulation | pandas | Used for Excel reading and aggregation |
 | ML / similarity | Python `math` (stdlib) | Euclidean distance + Min-Max normalization; no external ML lib needed at this data scale |
 | HTTP API | Flask + flask-cors | Lightweight REST API; CORS enabled for the static frontend |
+| Production server | gunicorn | WSGI server used by Render in production |
 | Frontend | HTML + CSS + vanilla JS | Static template; forms wired to API via `fetch()` |
+| Frontend hosting | GitHub Pages | Static hosting, free, HTTPS |
+| Backend hosting | Render (Free tier) | Python-friendly PaaS, free, HTTPS |
 
-**Why not deep learning:** dataset is small (~309 centroids, 3-5 numeric dimensions). Neural models would be overkill, prone to overfitting, non-interpretable, and provide no benefit over well-implemented k-NN. Content-based filtering with distance metrics is the literature-standard approach for this data size and structure.
+**Why not deep learning:** dataset is small (~144 centroids, 3 numeric dimensions). Neural models would be overkill, prone to overfitting, non-interpretable, and provide no benefit over well-implemented k-NN. Content-based filtering with distance metrics is the literature-standard approach for this data size and structure.
 
 ---
 
@@ -38,7 +43,7 @@
 **Original dataset:** `XWines_Full_100K_wines.csv` — 100,646 wines with attributes including grape varieties, ABV, body, acidity, type, country, region, winery, food pairings.
 
 **Curated dataset:** `data/BlindTaste_Varietal_Wines.xlsx`
-- **Sheet "Varietal Wines"** — 72,496 rows, 19 columns.  Only `Varietal/100%` wines (single-grape wines) to avoid ambiguity of blends.
+- **Sheet "Varietal Wines"** — 72,496 rows, 19 columns. Only `Varietal/100%` wines (single-grape wines) to avoid ambiguity of blends.
 - **Sheet "Grape Summary"** — 576 rows, per-grape aggregate stats (for manual inspection, not consumed by the populate script).
 
 **Why only varietals:**
@@ -77,7 +82,7 @@ To enable centroid computation and distance metrics, categorical attributes were
 
 ## 5. Database Schema
 
-**Location:** `data/blindtaste.db` (SQLite)  
+**Location:** `data/blindtaste.db` (SQLite) — committed to the repo so Render uses it directly on deploy.  
 **Models file:** `backend/models.py`
 
 ### 5.1 `grape_standard`
@@ -154,7 +159,7 @@ Shown in the ER diagram but **not implemented as a table**. The full wine datase
 2. Normalize wine type names: `"Dessert/Port"` → `"Dessert Port"` (via `TYPE_NAMES` dict before grouping).
 3. Parse `Food_Pairings` cells from Python list literal strings.
 4. Wipe existing rows in `grape_standard` (idempotent).
-5. Group by `(Grape, Type)`; skip groups with <200 wines.
+5. Group by `(Grape, Type)`; skip groups with <50 wines.
 6. For each surviving group, compute:
    - `avg_alcohol` = mean(ABV), rounded to 2 decimals
    - `avg_body` = mean(Body_Numeric)
@@ -271,17 +276,34 @@ All finalized and implemented:
 - Alcohol % input has a fixed `width: 5rem` inline style (template default was too narrow to show placeholder).
 - On submit, results are stored in `localStorage` (`bt_results`, `bt_input_mode`, `bt_input`) and the user is redirected to `results.html`.
 
-**Styling overrides** (inline `<style>` block on each page, does not touch `main.css`):
-- Base font: `13pt` (down from `16pt`)
-- Nav: `2.75rem` height, `54rem` max-width, tabs centered
-- Content card: `54rem` max-width, reduced padding
+**API base URL:** all pages reference `const API_BASE` near the top of their inline script. **In production this points to the Render URL** (see §14). To run the frontend against a local backend, swap to `http://localhost:5000`.
+
+**Styling overrides** (inline `<style>` block on each page, does not touch `main.css` except for the nav and main width rules listed below):
+- Base font: `13pt`
+- Nav: `2.75rem` height, tabs centered; margin matches `#main` margin per page; `#nav.stuck` → `position: fixed; top: 0; left: 0; right: 0; margin: 0; background: #1e252d; z-index: 10000` with `0.25s` transition
+- Content card: uses `margin: 0 Xrem` (no max-width — `main.css` `#nav` and `#main` had their hardcoded `width`/`max-width` removed so margins drive the layout)
+- `about.html` margin: `0 5rem`; `label_input.html` / `flavor_input.html` margin: `0 1.5rem`
+- `logs.html`: nav `position: fixed`, main `margin-top: 2.75rem` (no intro, `overflow: hidden` on `#wrapper` breaks CSS sticky)
 - Intro: `100vh` (required for scroll trigger), title centered vertically at `4rem`
-- `logs.html` uses `72rem` max-width (wider to accommodate the table)
+- Dropdowns: `max-width: 22rem` on `label_input.html` and `flavor_input.html`
+- Alcohol % input: `width: 5rem`
+- Header paragraphs: `max-width: 30rem; margin: 0 auto` on all three form/about pages
+- About hero image: `max-width: 55%; display: block; margin: 0 auto`
 
 **Images directory layout** (`frontend/images/`):
 - `backgrounds/` — `bg.jpg`, `overlay.png`, `pic02.jpg`–`pic09.jpg` (parallax/background images used by `main.css`)
 - `extra/` — `pic01.jpg` (wine glass pouring photo shown in `about.html`)
-- `grapes/` — per-grape images (57 files, mixed naming conventions); use TBD
+- `grapes/` — per-grape images (57 files, mixed naming conventions); use TBD (currently unused in `results.html`)
+
+**Sticky nav** (`frontend/assets/js/nav-sticky.js`): shared script loaded on all three intro pages. Inserts a placeholder `div` before the nav, measures `navTop` on `load` (after stripping any premature stuck class), then on `scroll` toggles `#nav.stuck` when `scrollY >= navTop`. Initializes `navTop = Infinity` to prevent a race condition on page refresh where a browser-restored scroll event fires before `load` and locks the nav stuck permanently.
+
+**Server wakeup banner**: both form pages show a yellow "Waking up the server…" banner after 4 seconds if the API hasn't responded (Render Free cold-start). Cleared as soon as `loadWineTypes` resolves.
+
+**API docs endpoint**: `GET /api/docs` returns structured JSON documentation of all 7 endpoints.
+
+**README.md**: created at project root — covers project description, algorithm, tech stack, dataset, project structure, setup, and API reference table.
+
+**About page**: enriched with two new sections — "How It Works" (algorithm walkthrough with similarity formula) and "The Dataset" (XWines source, varietal filtering rationale, 144 combinations).
 
 **Tech:** static HTML/CSS/vanilla JS, no build step. Template JS suite kept intact (required for intro animation and nav behavior).
 
@@ -296,10 +318,10 @@ TESINA/
 │   ├── create_db.py       # Creates empty tables (DB path: data/blindtaste.db)
 │   ├── populate_db.py     # Populates grape_standard from Excel (idempotent)
 │   ├── recommender.py     # Core recommendation algorithm (recommend_label, recommend_flavor)
-│   └── api.py             # Flask REST API (5 endpoints, logs every request to DB)
+│   └── api.py             # Flask REST API (7 endpoints incl. /api/docs, logs every request to DB)
 ├── data/
 │   ├── BlindTaste_Varietal_Wines.xlsx   # Curated wine dataset
-│   └── blindtaste.db                   # Generated SQLite database
+│   └── blindtaste.db                   # SQLite database (committed to repo)
 ├── frontend/
 │   ├── about.html         # Landing page
 │   ├── label_input.html   # Label Input form (wired to API)
@@ -310,21 +332,25 @@ TESINA/
 │   └── images/
 │       ├── backgrounds/   # bg.jpg, overlay.png, pic02-pic09.jpg
 │       ├── extra/         # pic01.jpg (wine glass photo)
-│       └── grapes/        # per-grape variety images (57 files)
-├── venv/                  # Python virtual environment (local)
-└── CONTEXT.md             # This file
+│       └── grapes/        # per-grape variety images (57 files, unused for now)
+├── venv/                  # Python virtual environment (local, gitignored)
+├── index.html             # Root redirect → frontend/about.html (for GitHub Pages)
+├── Procfile               # Render start command: gunicorn --chdir backend api:app
+├── requirements.txt       # Python dependencies (flask, flask-cors, sqlalchemy, pandas, openpyxl, gunicorn)
+├── .gitignore             # Ignores venv/, __pycache__/, .pyc, etc.
+└── context.md             # This file
 ```
 
 ---
 
-## 12. Setup & Run
+## 12. Setup & Run (Local Development)
 
 ```bash
 # Activate venv (Windows PowerShell)
 .\venv\Scripts\Activate.ps1
 
 # Install dependencies (one-time)
-pip install sqlalchemy pandas openpyxl flask flask-cors
+pip install -r requirements.txt
 
 # Create empty tables (uses absolute path internally — can be run from anywhere)
 python backend/create_db.py
@@ -337,22 +363,59 @@ cd backend
 python api.py
 ```
 
-**Note:** the frontend is served separately (e.g. VS Code Live Server on port 5500). The API must be running on port 5000 for the forms to load dropdowns and submit recommendations.
+**Note:** the frontend is served separately (e.g. VS Code Live Server on port 5500) when running locally. The API must be running on port 5000 for the forms to load dropdowns and submit recommendations. **In local development, remember to temporarily swap `API_BASE` in the HTML files from the Render URL back to `http://localhost:5000`.**
 
 ---
 
 ## 13. Open Questions / Next Steps
 
-1. ~~Finalize Flavor Profile Input fields.~~ ✓ Done (§9.2)
-2. ~~Confirm cross-cutting algorithm decisions (§9.3).~~ ✓ Done
-3. ~~Implement the recommendation algorithm.~~ ✓ Done (`backend/recommender.py`)
-4. ~~Build an HTTP API (Flask) to expose the recommender to the frontend.~~ ✓ Done (`backend/api.py`)
-5. ~~Rework the frontend forms to match the finalized input schema.~~ ✓ Done (`label_input.html`, `flavor_input.html`)
-6. ~~Build a results page (`frontend/results.html`).~~ ✓ Done
-7. ~~Wire `Log` and `RecommendationResult` persistence into the API flow.~~ ✓ Done (every request logged in `api.py`)
-8. ~~Build admin logs page.~~ ✓ Done (`logs.html`)
-9. Decide how to use grape images in `images/grapes/` (e.g. show on results cards).
+1. ~~Finalize Flavor Profile Input fields.~~ ✓
+2. ~~Confirm cross-cutting algorithm decisions (§9.3).~~ ✓
+3. ~~Implement the recommendation algorithm.~~ ✓ (`backend/recommender.py`)
+4. ~~Build an HTTP API (Flask) to expose the recommender to the frontend.~~ ✓ (`backend/api.py`)
+5. ~~Rework the frontend forms to match the finalized input schema.~~ ✓ (`label_input.html`, `flavor_input.html`)
+6. ~~Build a results page (`frontend/results.html`).~~ ✓
+7. ~~Wire `Log` and `RecommendationResult` persistence into the API flow.~~ ✓ (every request logged in `api.py`)
+8. ~~Build admin logs page.~~ ✓ (`logs.html`)
+9. ~~Deploy to production.~~ ✓ (see §14)
+10. Decide how to use grape images in `images/grapes/` (e.g. show on results cards). **← next**
 
 ---
 
-*Last updated: 2026-05-09 (session 2)*
+## 14. Deployment
+
+**Production status:** live as of 2026-05-12.
+
+**Frontend:** GitHub Pages
+- Source: `main` branch, `/` (root)
+- Root `index.html` redirects to `frontend/about.html`
+- URL: `https://<github-username>.github.io/<repo-name>/`
+
+**Backend:** Render — Free tier Web Service
+- Runtime: Python 3
+- Build command: `pip install -r requirements.txt`
+- Start command: `gunicorn --chdir backend api:app`
+- Instance type: Free
+- URL: `https://<render-service-name>.onrender.com`
+
+**Deployment workflow:**
+- `git push` to the `main` branch on GitHub triggers:
+  - GitHub Pages rebuild (within ~30 seconds)
+  - Render auto-redeploy (within ~3 minutes)
+
+**Key files for deployment:**
+- `Procfile` — tells Render how to start the app
+- `requirements.txt` — includes `gunicorn` for the production server
+- `data/blindtaste.db` — DB file is committed so Render uses it directly without running `populate_db.py` on each cold start
+- `index.html` — root redirect for clean URLs on GitHub Pages
+- `api.py` end-of-file binds to `0.0.0.0:$PORT` (Render assigns the port via environment variable)
+
+**Caveats of Render Free tier:**
+- Server sleeps after 15 min of inactivity. First request after sleep takes ~30s (cold start).
+- No persistent disk: any data written at runtime (i.e. new rows in `log` and `recommendation_result`) survives until the next redeploy, then resets. For thesis demo this is acceptable; the static catalog in `grape_standard` always comes back fresh because the `.db` is in the repo.
+
+**CORS:** `api.py` uses `CORS(app)` (permissive) — required so the GitHub Pages frontend (different origin) can call the Render API.
+
+---
+
+*Last updated: 2026-05-12 (session 3 — deployment to GitHub Pages + Render complete).*

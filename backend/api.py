@@ -237,6 +237,69 @@ def logs():
 
 
 # ---------------------------------------------------------------------------
+# API documentation endpoint
+# ---------------------------------------------------------------------------
+
+@app.route("/api/docs", methods=["GET"])
+def api_docs():
+    """Return structured documentation for all API endpoints."""
+    return jsonify({
+        "name": "BlindTaste API",
+        "version": "1.0",
+        "base_url": "https://blindtaste.onrender.com",
+        "endpoints": [
+            {
+                "method": "POST",
+                "path": "/api/recommend/label",
+                "description": "Label Input — returns top 5 grape varieties matching a wine label profile.",
+                "body": {
+                    "wine_type":  "string  (required) — e.g. 'Red', 'White', 'Sparkling'",
+                    "alcohol":    "float   (required) — ABV percentage, range 8–16",
+                    "main_grape": "string  (required) — grape to exclude from results",
+                    "acidity":    "float   (optional) — 1=Low, 2=Medium, 3=High",
+                    "body":       "float   (optional) — 1=Very Light to 5=Very Full"
+                }
+            },
+            {
+                "method": "POST",
+                "path": "/api/recommend/flavor",
+                "description": "Flavor Profile — returns top 5 grapes matching a desired taste profile. At least one field required.",
+                "body": {
+                    "wine_type":    "string (optional)",
+                    "alcohol":      "float  (optional) — ABV percentage, range 8–16",
+                    "acidity":      "float  (optional) — 1=Low, 2=Medium, 3=High",
+                    "body":         "float  (optional) — 1=Very Light to 5=Very Full",
+                    "food_pairing": "string (optional) — must match a value from /api/food-pairings"
+                }
+            },
+            {
+                "method": "GET",
+                "path": "/api/wine-types",
+                "description": "Returns all distinct wine types present in the database."
+            },
+            {
+                "method": "GET",
+                "path": "/api/grapes",
+                "description": "Returns distinct grape names, optionally filtered by wine type.",
+                "params": {"wine_type": "string (optional)"}
+            },
+            {
+                "method": "GET",
+                "path": "/api/food-pairings",
+                "description": "Returns all unique food pairings, optionally filtered by wine type.",
+                "params": {"wine_type": "string (optional)"}
+            },
+            {
+                "method": "GET",
+                "path": "/api/logs",
+                "description": "Returns recent recommendation logs with results joined.",
+                "params": {"limit": "integer (optional, default 50, max 200)"}
+            }
+        ]
+    })
+
+
+# ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
 
