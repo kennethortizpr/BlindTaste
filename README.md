@@ -70,25 +70,25 @@ Built on a curated subset of the [XWines](https://github.com/rogerioxavier/X-Win
 TESINA/
 ├── backend/
 │   ├── models.py          # SQLAlchemy models (GrapeStandard, Log, RecommendationResult)
-│   ├── create_db.py       # Creates empty SQLite tables
+│   ├── create_db.py       # Creates empty tables (DB path: data/blindtaste.db)
 │   ├── populate_db.py     # Populates grape_standard from Excel (idempotent)
-│   ├── recommender.py     # Core algorithm (recommend_label, recommend_flavor)
-│   └── api.py             # Flask REST API (7 endpoints)
+│   ├── recommender.py     # Core recommendation algorithm (recommend_label, recommend_flavor)
+│   └── api.py             # Flask REST API (7 endpoints incl. /api/docs, logs every request to DB)
 ├── data/
-│   ├── BlindTaste_Varietal_Wines.xlsx   # Curated varietal wine dataset
-│   └── blindtaste.db                   # SQLite database (committed for Render)
+│   ├── BlindTaste_Varietal_Wines.xlsx   # Curated wine dataset
+│   └── blindtaste.db                   # SQLite database (committed to repo)
 ├── frontend/
 │   ├── about.html         # Landing page
 │   ├── label_input.html   # Label Input form
-│   ├── flavor_input.html  # Flavor Profile form
-│   ├── results.html       # Results page
-│   ├── logs.html          # Admin logs page
+│   ├── flavor_input.html  # Flavor Profile Input form 
+│   ├── results.html       # Results page (reads localStorage, renders top-5 cards)
+│   ├── logs.html          # Logs page
 │   ├── assets/            # CSS, JS, fonts
 │   └── images/
-│       ├── backgrounds/   # Parallax background images
-│       ├── extra/         # Hero photo
-│       └── grapes/        # Per-variety grape images
-└── context.md             # Full design decisions and project context
+│       ├── backgrounds/   
+│       ├── extra/        
+│       └── grapes/        # per-grape variety images 
+└── index.html             # Root redirect → frontend/about.html (for GitHub Pages)
 ```
 
 ---
