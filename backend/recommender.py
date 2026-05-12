@@ -12,7 +12,8 @@ Algorithm:
   - Apply Min-Max normalization using fixed domain-scale bounds.
   - Compute Euclidean distance between input and each candidate centroid.
   - Convert distance to similarity %: max(0, (1 - d / max_d) * 100),
-    where max_d = sqrt(n_active_features) (theoretical max after normalization).
+    where max_d = actual maximum distance across all candidates in the pool
+    (data-relative scale — the worst match scores 0%, best scores 100%).
   - Return top_n results sorted by ascending distance.
 """
 
@@ -78,14 +79,22 @@ def _score_and_rank(
 
     active_keys = list(input_features.keys())
     input_norm = _normalize(input_features)
-    # After normalization every dimension is in [0,1], so the theoretical
-    # maximum Euclidean distance for n dimensions is sqrt(n).
-    max_dist = math.sqrt(len(active_keys))
 
-    scored: list[tuple[float, float, GrapeStandard]] = []
+    # Compute all distances first so we can scale relative to the actual
+    # farthest candidate rather than the theoretical worst-case sqrt(n).
+    # This spreads scores across the real data range instead of clustering
+    # everything near 100% (the theoretical max is never reached in practice).
+    raw: list[tuple[float, GrapeStandard]] = []
     for c in candidates:
         cand_norm = _normalize(_row_features(c, active_keys))
-        dist = _euclidean(input_norm, cand_norm)
+        raw.append((_euclidean(input_norm, cand_norm), c))
+
+    max_dist = max(d for d, _ in raw) if raw else 1.0
+    if max_dist < 1e-9:
+        max_dist = 1.0
+
+    scored: list[tuple[float, float, GrapeStandard]] = []
+    for dist, c in raw:
         similarity = max(0.0, (1.0 - dist / max_dist) * 100.0)
         scored.append((dist, similarity, c))
 

@@ -251,7 +251,8 @@ All finalized and implemented:
   - `avg_body`: [1.0, 5.0]
 - **Weights:** all equal (each normalized dimension contributes equally).
 - **Distance metric:** Euclidean.
-- **Distance → similarity %:** `similarity = max(0, (1 - d / sqrt(n)) * 100)`, where `n` = number of active features. `sqrt(n)` is the theoretical max Euclidean distance when every dimension is in [0, 1] after normalization. Result is rounded to 1 decimal place.
+- **Distance → similarity %:** `similarity = max(0, (1 - d / max_d) * 100)`, where `max_d` = **actual maximum distance across all candidates in the pool** (data-relative scale). The worst match in the pool scores 0%, the best scores 100%, and the top 5 are spread naturally across that range. Result is rounded to 1 decimal place.
+  - **Why not `sqrt(n)` (theoretical max):** all centroids are clustered in a small region of the unit hypercube (e.g. most ABVs are 12–14%, not 8–16%), so `sqrt(n)` is unrealistically large — every real distance is tiny relative to it and all scores cluster above 90%. Using the actual max distance calibrates the scale to real data.
 
 ---
 
@@ -293,7 +294,12 @@ All finalized and implemented:
 **Images directory layout** (`frontend/images/`):
 - `backgrounds/` — `bg.jpg`, `overlay.png`, `pic02.jpg`–`pic09.jpg` (parallax/background images used by `main.css`)
 - `extra/` — `pic01.jpg` (wine glass pouring photo shown in `about.html`)
-- `grapes/` — per-grape images (57 files, mixed naming conventions); use TBD (currently unused in `results.html`)
+- `grapes/` — per-grape images, all filenames normalized to **lowercase kebab-case** (e.g. `cabernet-sauvignon.jpg`, `gruner-veltliner.jpg`). Mixed `.jpg`/`.png` extensions. Sources: manually sourced + downloaded from Wikipedia via `download_grape_images.py`. Not all 144 DB varieties have an image.
+
+**Grape images on results page:** `results.html` renders a 90×110px image column on each result card.
+- `grapeSlug(name)` — JS function: NFD normalize → strip accents → lowercase → replace non-alphanumeric runs with hyphens. Matches the Python slug used when naming files.
+- `SLUG_OVERRIDES` — JS map for edge cases: `"nero d avola" → "nero-davola"` (apostrophe in "Nero d'Avola" would otherwise produce `nero-d-avola`).
+- Fallback chain: tries `images/grapes/{slug}.jpg` → on error tries `.png` → if that also fails, hides the `<img>` and shows a "No image available." placeholder div of the same size (gray background).
 
 **Sticky nav** (`frontend/assets/js/nav-sticky.js`): shared script loaded on all three intro pages. Inserts a placeholder `div` before the nav, measures `navTop` on `load` (after stripping any premature stuck class), then on `scroll` toggles `#nav.stuck` when `scrollY >= navTop`. Initializes `navTop = Infinity` to prevent a race condition on page refresh where a browser-restored scroll event fires before `load` and locks the nav stuck permanently.
 
@@ -373,7 +379,7 @@ python api.py
 7. ~~Wire `Log` and `RecommendationResult` persistence into the API flow.~~ ✓ (every request logged in `api.py`)
 8. ~~Build admin logs page.~~ ✓ (`logs.html`)
 9. ~~Deploy to production.~~ ✓ (see §14)
-10. Decide how to use grape images in `images/grapes/` (e.g. show on results cards). **← next**
+10. ~~Decide how to use grape images in `images/grapes/` (e.g. show on results cards).~~ ✓ (implemented on `results.html` with slug function + fallback chain)
 
 ---
 
@@ -413,4 +419,4 @@ python api.py
 
 ---
 
-*Last updated: 2026-05-12 (session 3 — deployment to GitHub Pages + Render complete).*
+*Last updated: 2026-05-12 (session 4 — grape images on results page, similarity algorithm made data-relative).*

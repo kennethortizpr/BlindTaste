@@ -1,6 +1,6 @@
 # BlindTaste
 
-> A content-based wine recommendation engine — built as a Computer Science thesis project.
+> A content-based wine recommendation engine — built as a Computer Science dissertation project.
 
 **Live demo:** [blindtaste — GitHub Pages](https://kennethortiz20.github.io/blindtaste) &nbsp;|&nbsp; **API:** [blindtaste.onrender.com](https://blindtaste.onrender.com)
 
@@ -133,4 +133,4 @@ Full documentation available at [`GET /api/docs`](https://blindtaste.onrender.co
 
 ---
 
-*BlindTaste — Computer Science Thesis, 2026*
+*BlindTaste — Computer Science Dissertation, 2026*

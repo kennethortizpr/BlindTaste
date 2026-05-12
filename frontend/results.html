@@ -115,6 +115,37 @@
       }
       .result-pairings strong { color: #555; }
 
+      /* Grape image */
+      .result-img-wrap {
+        flex-shrink: 0;
+        width: 90px;
+        height: 110px;
+        border-radius: 3px;
+        overflow: hidden;
+        background: #f0f0f0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .grape-img {
+        width: 90px;
+        height: 110px;
+        object-fit: cover;
+        display: block;
+      }
+      .grape-img-placeholder {
+        display: none;
+        width: 90px;
+        height: 110px;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.65rem;
+        color: #aaa;
+        text-align: center;
+        padding: 0.25rem;
+        line-height: 1.4;
+      }
+
       /* No-results / error state */
       .empty-state { text-align: center; padding: 3rem 0; color: #aaa; }
 
@@ -156,6 +187,42 @@
     </div><!-- /wrapper -->
 
     <script>
+      // Slug overrides where the file name differs from the auto-generated slug
+      const SLUG_OVERRIDES = {
+        "nero d avola":  "nero-davola",
+      };
+
+      function grapeSlug(name) {
+        const norm = name
+          .normalize("NFD")
+          .replace(/[̀-ͯ]/g, "")
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, " ")
+          .trim()
+          .replace(/ /g, "-");
+        return SLUG_OVERRIDES[norm.replace(/-/g, " ")] || norm;
+      }
+
+      function grapeImgFallback(img, slug) {
+        if (!img.dataset.triedPng) {
+          img.dataset.triedPng = "1";
+          img.onerror = function() {
+            img.style.display = "none";
+            img.nextElementSibling.style.display = "flex";
+          };
+          img.src = "images/grapes/" + slug + ".png";
+        }
+      }
+
+      function grapeImgHtml(grapeName) {
+        const slug = grapeSlug(grapeName);
+        return `<div class="result-img-wrap">
+          <img src="images/grapes/${slug}.jpg" alt="${grapeName}" class="grape-img"
+               onerror="grapeImgFallback(this,'${slug}')">
+          <div class="grape-img-placeholder">No image available.</div>
+        </div>`;
+      }
+
       function bodyLabel(v) {
         if (v < 1.5) return "Very Light-bodied";
         if (v < 2.5) return "Light-bodied";
@@ -206,6 +273,7 @@
               <div class="result-rank">#${r.rank}<span>match</span></div>
               ${simHtml}
             </div>
+            ${grapeImgHtml(r.grape_name)}
             <div class="result-right">
               <div class="result-header">
                 <h3 class="result-grape">${r.grape_name}</h3>
