@@ -192,11 +192,7 @@ The `description` field is generated at populate time using threshold-based labe
 - `< 14` → "medium-high alcohol content"
 - `≥ 14` → "high alcohol content"
 
-**Template:** `"{grape} ({wine_type}) — A {body_label} wine with {acidity_label} and {alcohol_label} (~{avg_alcohol:.1f}% ABV)."`
-
-**Examples:**
-- "Malbec (Red) — A very full-bodied wine with high acidity and medium-high alcohol content (~13.9% ABV)."
-- "Riesling (White) — A light-bodied wine with high acidity and moderate alcohol content (~11.9% ABV)."
+**Current descriptions:** hand-written per variety. Each covers color hue, renowned regions/countries, main flavor notes (3–5), and a stats line (body, acidity, ABV). Example: *"A deep ruby-garnet wine with violet hues, Malbec is most celebrated in Argentina's Mendoza and in its native Cahors, France. Expect rich notes of blackberry, plum, dark chocolate, and a hint of violet. Full-bodied, medium acidity, ~13.9% ABV."*
 
 ---
 
@@ -419,4 +415,4 @@ python api.py
 
 ---
 
-*Last updated: 2026-05-12 (session 4 — grape images on results page, similarity algorithm made data-relative).*
+*Last updated: 2026-05-12 (session 5 — rich hand-written grape descriptions loaded into DB via load_descriptions.py).*
