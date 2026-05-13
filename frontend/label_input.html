@@ -13,7 +13,7 @@
       #nav.stuck            { position: fixed; top: 0; left: 0; right: 0; margin: 0; z-index: 10000; background: #1e252d; }
       #main                 { margin: 0 1.5rem; }
       #main > *             { padding: 2rem 3rem 1.5rem 3rem; }
-      #main header.major p  { max-width: 30rem; margin-left: auto; margin-right: auto; }
+      #main header.major p  { max-width: 26rem; margin-left: auto; margin-right: auto; }
       #main select          { max-width: 22rem; }
       #intro                { min-height: 100vh; padding: 4rem 3rem 3rem 3rem; justify-content: center; }
       #intro h1             { font-size: 4rem; letter-spacing: 0.1em; }
@@ -142,107 +142,7 @@
     <script src="assets/js/breakpoints.min.js"></script>
     <script src="assets/js/util.js"></script>
     <script src="assets/js/main.js"></script>
-
-    <script>
-      const API_BASE = "https://blindtaste.onrender.com";
-
-      const _wakeupTimer = setTimeout(() => {
-        document.getElementById('server-status').style.display = 'block';
-      }, 4000);
-
-      async function loadWineTypes() {
-        try {
-          const res  = await fetch(`${API_BASE}/api/wine-types`);
-          clearTimeout(_wakeupTimer);
-          document.getElementById('server-status').style.display = 'none';
-          const data = await res.json();
-          const sel  = document.getElementById("wine_type");
-          sel.innerHTML = '<option value="">— Select type —</option>';
-          data.wine_types.forEach(t => {
-            const opt = document.createElement("option");
-            opt.value = t;
-            opt.textContent = t;
-            sel.appendChild(opt);
-          });
-        } catch {
-          clearTimeout(_wakeupTimer);
-          document.getElementById('server-status').style.display = 'none';
-          document.getElementById("wine_type").innerHTML =
-            '<option value="">Could not load — is the API running?</option>';
-        }
-      }
-
-      async function loadGrapes(wineType) {
-        const sel = document.getElementById("main_grape");
-        if (!wineType) {
-          sel.innerHTML = '<option value="">Select a wine type first</option>';
-          return;
-        }
-        sel.innerHTML = '<option value="">Loading…</option>';
-        try {
-          const res  = await fetch(`${API_BASE}/api/grapes?wine_type=${encodeURIComponent(wineType)}`);
-          const data = await res.json();
-          sel.innerHTML = '<option value="">— Select grape —</option>';
-          data.grapes.forEach(g => {
-            const opt = document.createElement("option");
-            opt.value = g;
-            opt.textContent = g;
-            sel.appendChild(opt);
-          });
-        } catch {
-          sel.innerHTML = '<option value="">Could not load grapes</option>';
-        }
-      }
-
-      document.getElementById("wine_type").addEventListener("change", e => {
-        loadGrapes(e.target.value);
-      });
-
-      document.getElementById("label-form").addEventListener("submit", async e => {
-        e.preventDefault();
-        const errorEl    = document.getElementById("form-error");
-        const wine_type  = document.getElementById("wine_type").value;
-        const main_grape = document.getElementById("main_grape").value;
-        const alcohol    = document.getElementById("alcohol").value;
-        const acidity    = document.getElementById("acidity").value;
-        const body       = document.getElementById("body").value;
-
-        errorEl.style.display = "none";
-
-        if (!wine_type || !main_grape || !alcohol) {
-          errorEl.textContent = "Please fill in all required fields (Wine Type, Main Grape, Alcohol %).";
-          errorEl.style.display = "block";
-          return;
-        }
-
-        const payload = { wine_type, main_grape, alcohol: parseFloat(alcohol) };
-        if (acidity) payload.acidity = parseFloat(acidity);
-        if (body)    payload.body    = parseFloat(body);
-
-        try {
-          const res  = await fetch(`${API_BASE}/api/recommend/label`, {
-            method:  "POST",
-            headers: { "Content-Type": "application/json" },
-            body:    JSON.stringify(payload),
-          });
-          const data = await res.json();
-          if (!res.ok) {
-            errorEl.textContent = `Error: ${data.error}`;
-            errorEl.style.display = "block";
-            return;
-          }
-          localStorage.setItem("bt_results",    JSON.stringify(data.results));
-          localStorage.setItem("bt_input_mode", "label");
-          localStorage.setItem("bt_input",      JSON.stringify(payload));
-          window.location.href = "results.html";
-        } catch {
-          errorEl.textContent = "Could not reach the server. Make sure the API is running on port 5000.";
-          errorEl.style.display = "block";
-        }
-      });
-
-      loadWineTypes();
-    </script>
+    <script src="assets/js/label.js"></script>
     <script src="assets/js/nav-sticky.js"></script>
   </body>
 </html>
