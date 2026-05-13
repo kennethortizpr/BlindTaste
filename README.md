@@ -23,18 +23,22 @@ BlindTaste uses **content-based filtering** with Euclidean distance:
 
 1. Every grape variety in the database is stored as a **centroid** — the mean ABV, body, and acidity computed across all wines of that variety and type.
 2. The user's input is **Min-Max normalized** to [0, 1] using fixed theoretical bounds (ABV: 8–16, body: 1–5, acidity: 1–3).
-3. **Euclidean distance** is computed between the input vector and each centroid — only over the dimensions the user actually provided (variable-dimensional, no defaults substituted).
-4. Distance is converted to a **similarity percentage**:
+3. **Euclidean distance** is computed between the input vector and each candidate centroid — only over the dimensions the user actually provided (variable-dimensional, no defaults substituted).
+4. Distance is converted to a **similarity percentage** using a data-relative scale:
 
 ```
-similarity = max(0, (1 - d / √n) × 100)
+similarity = max(0, (1 - d / max_d) × 100)
 ```
 
-where `n` is the number of active features and `√n` is the theoretical maximum distance in a unit hypercube.
+where `max_d` is the **actual maximum distance** across all candidates in the filtered pool. This means the worst match in the pool always scores 0% and the best always scores 100%, spreading results naturally across the real data range. Using a theoretical maximum (e.g. `√n`) would compress all scores above 90% because real centroids cluster in a narrow region of the feature space.
 
 5. The top 5 closest centroids are returned, ranked by similarity.
 
 No external ML libraries are used — the algorithm is implemented with Python's standard `math` library.
+
+### Label Input — exclusion behavior
+
+In Label Input mode, the grape entered by the user is excluded entirely from the candidate pool by **grape name**, regardless of wine type. This means that if the user inputs a Chardonnay White, no Chardonnay variant (White, Sparkling, or Dessert) will appear in the results — the goal is to discover genuinely different varieties, not different expressions of the same grape.
 
 ---
 
@@ -58,9 +62,10 @@ No external ML libraries are used — the algorithm is implemented with Python's
 
 Built on a curated subset of the [XWines](https://github.com/rogerioxavier/X-Wines) dataset (100K wines):
 
-- **72,496 varietal wines** kept — blends excluded to avoid ambiguous grape attribution (~32% of blends are alphabetically sorted, meaning the first grape is not necessarily dominant)
+- **72,496 varietal wines** kept — blends excluded to avoid ambiguous grape attribution (~32% of blends are alphabetically sorted, meaning the first grape listed is not necessarily dominant)
 - Groups with **fewer than 50 wines** filtered out — these correspond to highly obscure, regionally rare varieties that are practically unobtainable
 - **144 grape–type combinations** remain across Red, White, Rosé, Sparkling, Dessert, and Dessert Port categories
+- Each combination is stored as a **centroid**: mean ABV, body (1–5 scale), and acidity (1–3 scale) computed across all wines in that group
 
 ---
 
@@ -80,14 +85,14 @@ TESINA/
 ├── frontend/
 │   ├── about.html         # Landing page
 │   ├── label_input.html   # Label Input form
-│   ├── flavor_input.html  # Flavor Profile Input form 
-│   ├── results.html       # Results page (reads localStorage, renders top-5 cards)
+│   ├── flavor_input.html  # Flavor Profile Input form
+│   ├── results.html       # Results page (reads localStorage, renders top-5 cards with grape images)
 │   ├── logs.html          # Logs page
 │   ├── assets/            # CSS, JS, fonts
 │   └── images/
-│       ├── backgrounds/   
-│       ├── extra/        
-│       └── grapes/        # per-grape variety images 
+│       ├── backgrounds/
+│       ├── extra/
+│       └── grapes/        # Per-grape variety images (kebab-case filenames)
 └── index.html             # Root redirect → frontend/about.html (for GitHub Pages)
 ```
 
@@ -115,6 +120,8 @@ python api.py
 
 Serve the `frontend/` folder separately (e.g. VS Code Live Server on port 5500). The API must be running on port 5000 for dropdowns and submissions to work.
 
+> **Note:** in production, the frontend's `API_BASE` constant points to the Render URL. When running locally, swap it to `http://localhost:5000` in `assets/js/label.js` and `assets/js/flavor.js`.
+
 ---
 
 ## API Reference
@@ -130,6 +137,31 @@ Full documentation available at [`GET /api/docs`](https://blindtaste.onrender.co
 | `GET` | `/api/food-pairings?wine_type=` | Food pairings, optionally filtered by type |
 | `GET` | `/api/logs?limit=` | Recent recommendation logs |
 | `GET` | `/api/docs` | This documentation as JSON |
+
+### Example — Label Input
+
+```json
+POST /api/recommend/label
+{
+  "wine_type": "Red",
+  "alcohol": 13.5,
+  "main_grape": "Malbec",
+  "body": 4,
+  "acidity": 2
+}
+```
+
+### Example — Flavor Profile
+
+```json
+POST /api/recommend/flavor
+{
+  "wine_type": "White",
+  "body": 2,
+  "acidity": 3,
+  "food_pairing": "Rich Fish"
+}
+```
 
 ---
 

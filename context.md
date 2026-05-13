@@ -76,7 +76,18 @@ To enable centroid computation and distance metrics, categorical attributes were
 | Medium | 2 |
 | High | 3 |
 
-**ABV** is already numeric (range ~8% to ~16% typically).
+**ABV** is numeric (%) in the dataset. In Flavor Profile Input it is exposed as a 5-level categorical selector that maps to representative midpoint values (see §9.2).
+
+**ABV industry classification:**
+| Level | Range | Midpoint sent to API |
+|-------|-------|---------------------|
+| Very Low | < 10% | 9.0 |
+| Low | 10% – 11.9% | 11.0 |
+| Medium | 12% – 13.4% | 12.7 |
+| High | 13.5% – 14.9% | 14.0 |
+| Very High | ≥ 15% | 15.0 |
+
+Note: in Label Input, the user types the exact ABV % read from the label — no discretization.
 
 ---
 
@@ -98,7 +109,7 @@ The "standardized grape" table — the centroid representation used for recommen
 | `avg_acidity` | Float, NOT NULL | Mean of numeric acidity (1–3 scale) |
 | `avg_body` | Float, NOT NULL | Mean of numeric body (1–5 scale) |
 | `food_pairings` | String, NOT NULL | Comma-separated, alphabetically sorted, unique pairings |
-| `description` | String | Auto-generated descriptive sentence |
+| `description` | String | Hand-written descriptive sentence per variety |
 
 **Constraint:** `UniqueConstraint('grape_name', 'wine_type', name='uq_grape_type')` — enforces that each grape-type combination is a single logical entry.
 
@@ -109,6 +120,8 @@ The "standardized grape" table — the centroid representation used for recommen
 - **Why 50:** groups below this are almost exclusively highly obscure, regionally rare grape varieties that are practically unobtainable for most consumers. A threshold of 50 balances variety in recommendations against statistical reliability, ensuring every recommended grape is reasonably findable.
 
 **Why separate by wine_type:** a Chardonnay White (avg body 3.84) is sensorially different from a Chardonnay Sparkling (avg body 2.93). Merging them would produce a centroid that represents neither.
+
+**Descriptions:** hand-written per variety (replaced the auto-generated template). Each covers color hue, renowned regions/countries, main flavor notes (3–5), and a stats line (body, acidity, ABV). Example: *"A deep ruby-garnet wine with violet hues, Malbec is most celebrated in Argentina's Mendoza and in its native Cahors, France. Expect rich notes of blackberry, plum, dark chocolate, and a hint of violet. Full-bodied, medium acidity, ~13.9% ABV."*
 
 ### 5.2 `log`
 
@@ -130,7 +143,7 @@ Links logs to the top-5 grape recommendations returned.
 | `log_id_pk_fk1` | FK → log.id_pk, PK | Composite PK part 1 |
 | `grape_id_pk_fk2` | FK → grape_standard.id_pk, PK | Composite PK part 2 |
 | `similarity_percentage` | Float | How similar this grape was to the input |
-| `rank_order` | Integer | 1 = best match, 2, 3 |
+| `rank_order` | Integer | 1 = best match, up to 5 |
 
 ### 5.4 `REFERENCE_DATASET` (imaginary)
 
@@ -165,34 +178,25 @@ Shown in the ER diagram but **not implemented as a table**. The full wine datase
    - `avg_body` = mean(Body_Numeric)
    - `avg_acidity` = mean(Acidity_Numeric)
    - `food_pairings` = sorted union of all unique pairings
-   - `description` = auto-generated sentence (see §8)
+   - `description` = placeholder (overwritten by hand-written descriptions via `load_descriptions.py`)
 7. Insert into `grape_standard` via SQLAlchemy session.
 
 ---
 
-## 8. Auto-generated Descriptions
+## 8. Descriptions
 
-The `description` field is generated at populate time using threshold-based labels:
+**Current state:** hand-written, loaded into DB via `load_descriptions.py` (run once after populate).
 
-**Body labels** (from `avg_body`):
-- `< 1.5` → "very light-bodied"
-- `< 2.5` → "light-bodied"
-- `< 3.5` → "medium-bodied"
-- `< 4.5` → "full-bodied"
-- `≥ 4.5` → "very full-bodied"
+**Format per entry:** color hue + renowned regions/countries + flavor notes (3–5) + stats line.  
+**Template:** `"A [color] wine, [grape] is [regional context]. Expect [flavor notes]. [Body], [acidity], ~[ABV]% ABV."`
 
-**Acidity labels** (from `avg_acidity`):
-- `< 1.67` → "low acidity"
-- `< 2.33` → "medium acidity"
-- `≥ 2.33` → "high acidity"
+**Auto-generated label thresholds** (used as fallback if hand-written description is missing):
 
-**Alcohol labels** (from `avg_alcohol`):
-- `< 11` → "low alcohol content"
-- `< 13` → "moderate alcohol content"
-- `< 14` → "medium-high alcohol content"
-- `≥ 14` → "high alcohol content"
+Body: `< 1.5` → very light-bodied · `< 2.5` → light-bodied · `< 3.5` → medium-bodied · `< 4.5` → full-bodied · `≥ 4.5` → very full-bodied
 
-**Current descriptions:** hand-written per variety. Each covers color hue, renowned regions/countries, main flavor notes (3–5), and a stats line (body, acidity, ABV). Example: *"A deep ruby-garnet wine with violet hues, Malbec is most celebrated in Argentina's Mendoza and in its native Cahors, France. Expect rich notes of blackberry, plum, dark chocolate, and a hint of violet. Full-bodied, medium acidity, ~13.9% ABV."*
+Acidity: `< 1.67` → low · `< 2.33` → medium · `≥ 2.33` → high
+
+Alcohol: `< 11` → low · `< 13` → moderate · `< 14` → medium-high · `≥ 14` → high
 
 ---
 
@@ -208,12 +212,12 @@ The `description` field is generated at populate time using threshold-based labe
 | Field | Role | Required |
 |-------|------|----------|
 | Wine Type | Pre-filter (categorical) | Yes |
-| Alcohol % | Numeric feature | Yes |
-| Main Grape | Exclusion (the input grape is removed from candidates) | Yes |
-| Acidity | Numeric feature | **Optional** |
-| Body | Numeric feature | **Optional** |
+| Alcohol % | Numeric feature (exact value from label) | Yes |
+| Main Grape | Exclusion — all entries with this grape name are removed | Yes |
+| Acidity | Numeric feature (1–3) | **Optional** |
+| Body | Numeric feature (1–5) | **Optional** |
 
-**Exclusion rule:** exclude only the exact `(grape_name, wine_type)` combination — NOT all entries with that grape name. Example: if user has a Chardonnay White, a Chardonnay Sparkling can still be recommended.
+**Exclusion rule:** exclude **all entries with the same grape name**, regardless of wine type. This is intentional — the goal is to discover genuinely different varieties, not different expressions of the same grape. If the user inputs a Chardonnay White, no Chardonnay variant (White, Sparkling, or Dessert) will appear in the results.
 
 **Removed fields:** `Country` (not useful; `grape_standard` has no country dimension).
 
@@ -222,13 +226,22 @@ The `description` field is generated at populate time using threshold-based labe
 **Purpose:** user describes a desired taste profile (no specific wine in mind); system returns top 5 matching grapes.
 
 **Input fields:**
-| Field | Role | Required |
-|-------|------|----------|
-| Wine Type | Pre-filter (categorical) | **Optional** |
-| Desired Body | Numeric feature | **Optional** |
-| Desired Acidity | Numeric feature | **Optional** |
-| Desired ABV | Numeric feature | **Optional** |
-| Food Pairing | Filter (SQL LIKE on `food_pairings`) | **Optional** |
+| Field | UI Control | Role | Required |
+|-------|------------|------|----------|
+| Wine Type | Dropdown | Pre-filter (categorical) | **Optional** |
+| Desired Body | Dropdown (Very Light → Very Full) | Numeric feature (1–5) | **Optional** |
+| Desired Acidity | Dropdown (Low / Medium / High) | Numeric feature (1–3) | **Optional** |
+| Desired ABV | Dropdown (5-level selector) | Numeric feature (midpoint float) | **Optional** |
+| Food Pairing | Dropdown | Filter (SQL LIKE on `food_pairings`) | **Optional** |
+
+**ABV selector mapping** (frontend sends the midpoint float to the API):
+| Label shown to user | Value sent to API |
+|--------------------|-------------------|
+| Very Low (< 10%) | 9.0 |
+| Low (10% – 11.9%) | 11.0 |
+| Medium (12% – 13.4%) | 12.7 |
+| High (13.5% – 14.9%) | 14.0 |
+| Very High (≥ 15%) | 15.0 |
 
 **Validation rule:** at least one field must be provided (enforced by the API layer).
 
@@ -247,8 +260,8 @@ All finalized and implemented:
   - `avg_body`: [1.0, 5.0]
 - **Weights:** all equal (each normalized dimension contributes equally).
 - **Distance metric:** Euclidean.
-- **Distance → similarity %:** `similarity = max(0, (1 - d / max_d) * 100)`, where `max_d` = **actual maximum distance across all candidates in the pool** (data-relative scale). The worst match in the pool scores 0%, the best scores 100%, and the top 5 are spread naturally across that range. Result is rounded to 1 decimal place.
-  - **Why not `sqrt(n)` (theoretical max):** all centroids are clustered in a small region of the unit hypercube (e.g. most ABVs are 12–14%, not 8–16%), so `sqrt(n)` is unrealistically large — every real distance is tiny relative to it and all scores cluster above 90%. Using the actual max distance calibrates the scale to real data.
+- **Distance → similarity %:** `similarity = max(0, (1 - d / max_d) * 100)`, where `max_d` = **actual maximum distance across all candidates in the pool** (data-relative scale). The worst match in the pool scores 0%, the best scores 100%, spreading results naturally across the real data range. Using a theoretical maximum (e.g. `sqrt(n)`) would compress all scores above 90% because real centroids cluster in a narrow region of the feature space. Result is rounded to 1 decimal place.
+- **Known limitation:** Min-Max bounds [8, 16] for ABV are appropriate for table wines but Port/Dessert Port centroids (~19–20% ABV) exceed the upper bound. This is acceptable because Port is its own wine_type and the pre-filter prevents cross-type comparisons.
 
 ---
 
@@ -259,21 +272,22 @@ All finalized and implemented:
 **Template:** Custom HTML5/CSS3 template. Each page has a full-viewport animated intro section (title fades/scrolls away, revealing the nav), a centered navbar, and a white content card.
 
 **Pages:**
-- `about.html` — landing/intro page with project description and hero image
+- `about.html` — landing/intro page with project description, hero image, "How It Works" and "The Dataset" sections
 - `label_input.html` — Label Input form, fully wired to `POST /api/recommend/label`
 - `flavor_input.html` — Flavor Profile Input form, fully wired to `POST /api/recommend/flavor`
-- `results.html` — Results page, reads from `localStorage`, renders top-5 cards
+- `results.html` — Results page, reads from `localStorage`, renders top-5 cards with grape images
 - `logs.html` — Admin page, fetches `GET /api/logs`, renders full request history as a table
 
 **Form behavior:**
 - Dropdowns (Wine Type, Main Grape, Food Pairing) are populated dynamically from the API on page load.
 - Main Grape list refreshes whenever Wine Type changes (`/api/grapes?wine_type=`).
 - Food Pairing list refreshes whenever Wine Type changes (`/api/food-pairings?wine_type=`); shows all pairings when no type is selected.
-- Body blank option reads "— Any Body —"; Acidity blank option reads "— Any Acidity —".
-- Alcohol % input has a fixed `width: 5rem` inline style (template default was too narrow to show placeholder).
+- Body blank option reads "— Any Body —"; Acidity blank option reads "— Any Acidity —"; ABV blank option reads "— Any ABV —".
+- Alcohol % in Label Input: free numeric text input (`width: 5rem`), user types exact value from label.
+- Desired ABV in Flavor Profile: 5-level dropdown selector (Very Low → Very High) sending midpoint floats.
 - On submit, results are stored in `localStorage` (`bt_results`, `bt_input_mode`, `bt_input`) and the user is redirected to `results.html`.
 
-**API base URL:** all pages reference `const API_BASE` near the top of their inline script. **In production this points to the Render URL** (see §14). To run the frontend against a local backend, swap to `http://localhost:5000`.
+**API base URL:** all pages reference `const API_BASE` near the top of their page script (`label.js` / `flavor.js` for the form pages; inline for `results.html` and `logs.html`). **In production this points to the Render URL** (see §14). To run the frontend against a local backend, swap to `http://localhost:5000` in `assets/js/label.js` and `assets/js/flavor.js`.
 
 **Styling overrides** (inline `<style>` block on each page, does not touch `main.css` except for the nav and main width rules listed below):
 - Base font: `13pt`
@@ -284,16 +298,16 @@ All finalized and implemented:
 - Intro: `100vh` (required for scroll trigger), title centered vertically at `4rem`
 - Dropdowns: `max-width: 22rem` on `label_input.html` and `flavor_input.html`
 - Alcohol % input: `width: 5rem`
-- Header paragraphs: `max-width: 30rem; margin: 0 auto` on all three form/about pages
+- Header paragraphs: `max-width: 30rem` on `about.html`; `26rem` on `label_input.html`; `23rem` on `flavor_input.html`
 - About hero image: `max-width: 55%; display: block; margin: 0 auto`
 
 **Images directory layout** (`frontend/images/`):
 - `backgrounds/` — `bg.jpg`, `overlay.png`, `pic02.jpg`–`pic09.jpg` (parallax/background images used by `main.css`)
-- `extra/` — `pic01.jpg` (wine glass pouring photo shown in `about.html`)
-- `grapes/` — per-grape images, all filenames normalized to **lowercase kebab-case** (e.g. `cabernet-sauvignon.jpg`, `gruner-veltliner.jpg`). Mixed `.jpg`/`.png` extensions. Sources: manually sourced + downloaded from Wikipedia via `download_grape_images.py`. Not all 144 DB varieties have an image.
+- `extra/` — `pic01.jpg` (wine glass pouring photo shown in `about.html`); `icon.jpg` (site favicon, used on all pages)
+- `grapes/` — per-grape images, all filenames normalized to **lowercase kebab-case** (e.g. `cabernet-sauvignon.jpg`, `gruner-veltliner.jpg`). Mixed `.jpg`/`.png` extensions. Not all 144 DB varieties have an image; being filled in progressively.
 
 **Grape images on results page:** `results.html` renders a 90×110px image column on each result card.
-- `grapeSlug(name)` — JS function: NFD normalize → strip accents → lowercase → replace non-alphanumeric runs with hyphens. Matches the Python slug used when naming files.
+- `grapeSlug(name)` — JS function: NFD normalize → strip accents → lowercase → replace non-alphanumeric runs with hyphens.
 - `SLUG_OVERRIDES` — JS map for edge cases: `"nero d avola" → "nero-davola"` (apostrophe in "Nero d'Avola" would otherwise produce `nero-d-avola`).
 - Fallback chain: tries `images/grapes/{slug}.jpg` → on error tries `.png` → if that also fails, hides the `<img>` and shows a "No image available." placeholder div of the same size (gray background).
 
@@ -302,10 +316,6 @@ All finalized and implemented:
 **Server wakeup banner**: both form pages show a yellow "Waking up the server…" banner after 4 seconds if the API hasn't responded (Render Free cold-start). Cleared as soon as `loadWineTypes` resolves.
 
 **API docs endpoint**: `GET /api/docs` returns structured JSON documentation of all 7 endpoints.
-
-**README.md**: created at project root — covers project description, algorithm, tech stack, dataset, project structure, setup, and API reference table.
-
-**About page**: enriched with two new sections — "How It Works" (algorithm walkthrough with similarity formula) and "The Dataset" (XWines source, varietal filtering rationale, 144 combinations).
 
 **Tech:** static HTML/CSS/vanilla JS, no build step. Template JS suite kept intact (required for intro animation and nav behavior).
 
@@ -327,22 +337,30 @@ TESINA/
 ├── frontend/
 │   ├── about.html         # Landing page
 │   ├── label_input.html   # Label Input form
-│   ├── flavor_input.html  # Flavor Profile Input form 
-│   ├── results.html       # Results page (reads localStorage, renders top-5 cards)
+│   ├── flavor_input.html  # Flavor Profile Input form
+│   ├── results.html       # Results page (reads localStorage, renders top-5 cards with grape images)
 │   ├── logs.html          # Logs page
-│   ├── assets/            # CSS, JS, fonts
+│   ├── assets/
+│   │   ├── css/           # main.css, fontawesome
+│   │   ├── js/            # main.js, nav-sticky.js, label.js, flavor.js, util.js, etc.
+│   │   ├── sass/          # Source SCSS (not compiled at runtime)
+│   │   └── webfonts/      # FontAwesome webfonts
 │   └── images/
-│       ├── backgrounds/   
-│       ├── extra/        
-│       └── grapes/        # per-grape variety images 
-└── index.html             # Root redirect → frontend/about.html (for GitHub Pages)
+│       ├── backgrounds/   # bg.jpg, overlay.png, pic02–pic09.jpg
+│       ├── extra/         # pic01.jpg (wine glass photo)
+│       └── grapes/        # Per-grape images (kebab-case, progressively filled)
+├── index.html             # Root redirect → frontend/about.html (for GitHub Pages)
+├── Procfile               # Render start command: gunicorn --chdir backend api:app
+├── requirements.txt       # flask, flask-cors, sqlalchemy, pandas, openpyxl, gunicorn
+├── README.md              # Public project documentation
+└── context.md             # This file
 ```
 
 ---
 
 ## 12. Setup & Run (Local Development)
 
-```bash
+```powershell
 # Activate venv (Windows PowerShell)
 .\venv\Scripts\Activate.ps1
 
@@ -372,10 +390,14 @@ python api.py
 4. ~~Build an HTTP API (Flask) to expose the recommender to the frontend.~~ ✓ (`backend/api.py`)
 5. ~~Rework the frontend forms to match the finalized input schema.~~ ✓ (`label_input.html`, `flavor_input.html`)
 6. ~~Build a results page (`frontend/results.html`).~~ ✓
-7. ~~Wire `Log` and `RecommendationResult` persistence into the API flow.~~ ✓ (every request logged in `api.py`)
+7. ~~Wire `Log` and `RecommendationResult` persistence into the API flow.~~ ✓
 8. ~~Build admin logs page.~~ ✓ (`logs.html`)
 9. ~~Deploy to production.~~ ✓ (see §14)
-10. ~~Decide how to use grape images in `images/grapes/` (e.g. show on results cards).~~ ✓ (implemented on `results.html` with slug function + fallback chain)
+10. ~~Decide how to use grape images in `images/grapes/`.~~ ✓ (slug function + fallback chain on `results.html`)
+11. ~~Write hand-written descriptions for all 144 grape entries.~~ ✓ (loaded via `load_descriptions.py`)
+12. ~~Add ABV level selector (Very Low → Very High) to Flavor Profile Input.~~ ✓ (see §9.2)
+13. Fill in remaining grape images in `images/grapes/` — in progress.
+14. Write thesis document (introduction, framework, design, implementation, results, conclusions).
 
 ---
 
@@ -386,14 +408,14 @@ python api.py
 **Frontend:** GitHub Pages
 - Source: `main` branch, `/` (root)
 - Root `index.html` redirects to `frontend/about.html`
-- URL: `https://<github-username>.github.io/<repo-name>/`
+- URL: `https://kennethortizpr.github.io/blindtaste/`
 
 **Backend:** Render — Free tier Web Service
 - Runtime: Python 3
 - Build command: `pip install -r requirements.txt`
 - Start command: `gunicorn --chdir backend api:app`
 - Instance type: Free
-- URL: `https://<render-service-name>.onrender.com`
+- URL: `https://blindtaste.onrender.com`
 
 **Deployment workflow:**
 - `git push` to the `main` branch on GitHub triggers:
@@ -408,11 +430,11 @@ python api.py
 - `api.py` end-of-file binds to `0.0.0.0:$PORT` (Render assigns the port via environment variable)
 
 **Caveats of Render Free tier:**
-- Server sleeps after 15 min of inactivity. First request after sleep takes ~30s (cold start).
-- No persistent disk: any data written at runtime (i.e. new rows in `log` and `recommendation_result`) survives until the next redeploy, then resets. For thesis demo this is acceptable; the static catalog in `grape_standard` always comes back fresh because the `.db` is in the repo.
+- Server sleeps after 15 min of inactivity. First request after sleep takes ~30s (cold start). Both form pages show a yellow wakeup banner after 4s to communicate this to the user.
+- No persistent disk: any data written at runtime (new rows in `log` and `recommendation_result`) survives until the next redeploy, then resets. For thesis demo this is acceptable; `grape_standard` always comes back fresh because the `.db` is in the repo.
 
 **CORS:** `api.py` uses `CORS(app)` (permissive) — required so the GitHub Pages frontend (different origin) can call the Render API.
 
 ---
 
-*Last updated: 2026-05-12 (session 5 — rich hand-written grape descriptions loaded into DB via load_descriptions.py).*
+*Last updated: 2026-05-13 (session 7 — favicon added to all pages, Flavor ABV Very High value corrected to 15.0, API_BASE note updated to reference label.js/flavor.js, header paragraph widths corrected per page).*
