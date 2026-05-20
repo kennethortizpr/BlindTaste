@@ -2,7 +2,7 @@
 
 > A content-based wine recommendation engine — built as a Computer Science dissertation project.
 
-**Live demo:** [blindtaste — GitHub Pages](https://kennethortizpr.github.io/blindtaste) &nbsp;|&nbsp; **API:** [blindtaste.onrender.com](https://blindtaste.onrender.com)
+**Live demo:** [blindtaste — GitHub Pages](https://kennethortizpr.github.io/BlindTaste/index.html) &nbsp;|&nbsp; **API:** [blindtaste.onrender.com](https://blindtaste.onrender.com)
 
 ---
 
