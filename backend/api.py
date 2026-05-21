@@ -1,17 +1,4 @@
-# backend/api.py
-"""
-Flask HTTP API for BlindTaste.
-
-Endpoints:
-  POST /api/recommend/label   -- Label Input mode
-  POST /api/recommend/flavor  -- Flavor Profile mode
-  GET  /api/wine-types        -- Distinct wine types (for dropdowns)
-  GET  /api/grapes            -- Distinct grape names, optionally filtered by ?wine_type=
-  GET  /api/food-pairings     -- All unique food pairings (for dropdowns)
-
-Every recommendation request is persisted to the Log and RecommendationResult tables.
-"""
-
+# backend/api.py — Flask REST API. 7 endpoints for recommendations, dropdowns, logs, and docs.
 import json
 from datetime import datetime
 from pathlib import Path
@@ -24,9 +11,7 @@ from sqlalchemy.orm import sessionmaker
 from models import GrapeStandard, Log, RecommendationResult
 from recommender import recommend_flavor, recommend_label
 
-# ---------------------------------------------------------------------------
-# App + DB setup
-# ---------------------------------------------------------------------------
+# --- App & DB Setup ---
 
 BASE_DIR = Path(__file__).resolve().parent
 DB_PATH = BASE_DIR.parent / "data" / "blindtaste.db"
@@ -42,19 +27,16 @@ def _get_session():
     return SessionFactory()
 
 
-# ---------------------------------------------------------------------------
-# Logging helper
-# ---------------------------------------------------------------------------
+# --- Logging Helper ---
 
 def _persist_log(session, input_mode: str, user_input: dict, results: list) -> None:
-    """Insert a Log row and one RecommendationResult row per returned result."""
     log = Log(
         timestamp=datetime.now().isoformat(),
         input_mode=input_mode,
         user_input=json.dumps(user_input),
     )
     session.add(log)
-    session.flush()  # populate log.id_pk before referencing it
+    session.flush()  # get log.id_pk before inserting FK rows
 
     for result in results:
         session.add(RecommendationResult(
@@ -65,9 +47,9 @@ def _persist_log(session, input_mode: str, user_input: dict, results: list) -> N
         ))
 
 
-# ---------------------------------------------------------------------------
-# Recommendation endpoints
-# ---------------------------------------------------------------------------
+
+
+# --- Label Input ---
 
 @app.route("/api/recommend/label", methods=["POST"])
 def recommend_label_endpoint():
@@ -101,6 +83,9 @@ def recommend_label_endpoint():
         session.close()
 
 
+
+# --- Flavor Input ---
+
 @app.route("/api/recommend/flavor", methods=["POST"])
 def recommend_flavor_endpoint():
     data = request.get_json(silent=True)
@@ -133,9 +118,9 @@ def recommend_flavor_endpoint():
         session.close()
 
 
-# ---------------------------------------------------------------------------
-# Dropdown helper endpoints
-# ---------------------------------------------------------------------------
+
+
+# --- Dropdown Endpoints ---
 
 @app.route("/api/wine-types", methods=["GET"])
 def wine_types():
@@ -154,7 +139,6 @@ def wine_types():
 
 @app.route("/api/grapes", methods=["GET"])
 def grapes():
-    """Return distinct grape names. Accepts optional ?wine_type= query param."""
     session = _get_session()
     try:
         query = session.query(GrapeStandard.grape_name).distinct()
@@ -169,7 +153,6 @@ def grapes():
 
 @app.route("/api/food-pairings", methods=["GET"])
 def food_pairings():
-    """Return unique food pairings. Accepts optional ?wine_type= to filter by type."""
     session = _get_session()
     try:
         query = session.query(GrapeStandard.food_pairings)
@@ -187,16 +170,12 @@ def food_pairings():
         session.close()
 
 
-# ---------------------------------------------------------------------------
-# Logs endpoint (admin / debugging)
-# ---------------------------------------------------------------------------
+
+
+# --- Logs ---
 
 @app.route("/api/logs", methods=["GET"])
 def logs():
-    """
-    Return recent recommendation logs with their results joined.
-    Accepts optional ?limit= query param (default 50, max 200).
-    """
     from sqlalchemy import desc
     limit = min(int(request.args.get("limit", 50)), 200)
     session = _get_session()
@@ -236,13 +215,12 @@ def logs():
         session.close()
 
 
-# ---------------------------------------------------------------------------
-# API documentation endpoint
-# ---------------------------------------------------------------------------
+
+
+# --- API Docs ---
 
 @app.route("/api/docs", methods=["GET"])
 def api_docs():
-    """Return structured documentation for all API endpoints."""
     return jsonify({
         "name": "BlindTaste API",
         "version": "1.0",
@@ -299,9 +277,9 @@ def api_docs():
     })
 
 
-# ---------------------------------------------------------------------------
-# Entry point
-# ---------------------------------------------------------------------------
+
+
+# --- Entry Point ---
 
 if __name__ == "__main__":
     import os

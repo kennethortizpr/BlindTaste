@@ -1,19 +1,4 @@
-# backend/populate_db.py
-"""
-Populates the GrapeStandard table from the curated varietal wines Excel file.
-
-Reads: ../data/BlindTaste_Varietal_Wines.xlsx (sheet 'Varietal Wines')
-Writes: blindtaste.db (table: grape_standard)
-
-Logic:
-  1. Load all varietal wines from the Excel file.
-  2. Group by (Grape, Type) and compute average alcohol, body, acidity.
-  3. Collect all unique food pairings present in each group.
-  4. Keep only groups with at least MIN_WINES_PER_GROUP wines.
-  5. Generate a descriptive text for each grape-type combination.
-  6. Insert each group as a GrapeStandard row.
-"""
-
+# backend/populate_db.py — Reads the curated XWines Excel file and populates grape_standard with 144 centroids.
 import ast
 from pathlib import Path
 
@@ -24,24 +9,21 @@ from sqlalchemy.orm import sessionmaker
 from models import GrapeStandard
 
 
-# ---------------------------------------------------------------------------
-# Configuration
-# ---------------------------------------------------------------------------
+# --- Config ---
+
 BASE_DIR = Path(__file__).resolve().parent
 EXCEL_PATH = BASE_DIR.parent / 'data' / 'BlindTaste_Varietal_Wines.xlsx'
 DB_PATH = BASE_DIR.parent / 'data' / 'blindtaste.db'
 
-# Normalize wine type names that contain special characters
 TYPE_NAMES = {"Dessert/Port": "Dessert Port"}
 SHEET_NAME = 'Varietal Wines'
 MIN_WINES_PER_GROUP = 50
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
+
+# --- Label Helpers ---
+
 def parse_pairings(cell):
-    """Parse the Food_Pairings cell (stored as a Python list literal) into a list."""
     try:
         result = ast.literal_eval(cell)
         return result if isinstance(result, list) else []
@@ -50,7 +32,6 @@ def parse_pairings(cell):
 
 
 def body_label(avg_body):
-    """Convert a numeric body average (1-5 scale) into a descriptive phrase."""
     if avg_body < 1.5:
         return "very light-bodied"
     if avg_body < 2.5:
@@ -63,7 +44,6 @@ def body_label(avg_body):
 
 
 def acidity_label(avg_acidity):
-    """Convert a numeric acidity average (1-3 scale) into a descriptive phrase."""
     if avg_acidity < 1.67:
         return "low acidity"
     if avg_acidity < 2.33:
@@ -72,7 +52,6 @@ def acidity_label(avg_acidity):
 
 
 def alcohol_label(avg_alcohol):
-    """Convert an average ABV into a descriptive phrase."""
     if avg_alcohol < 11:
         return "low alcohol content"
     if avg_alcohol < 13:
@@ -83,16 +62,15 @@ def alcohol_label(avg_alcohol):
 
 
 def build_description(grape, wine_type, avg_alcohol, avg_body, avg_acidity):
-    """Create a reader-friendly description of this grape-type combination."""
     return (
         f"{grape} ({wine_type}) — A {body_label(avg_body)} wine with "
         f"{acidity_label(avg_acidity)} and {alcohol_label(avg_alcohol)} "
         f"(~{avg_alcohol:.1f}% ABV)."
     )
 
-# ---------------------------------------------------------------------------
-# Main
-# ---------------------------------------------------------------------------
+
+# --- Main ---
+
 def main():
     print(f"Reading wines from: {EXCEL_PATH}")
     if not EXCEL_PATH.exists():
@@ -101,18 +79,14 @@ def main():
     df = pd.read_excel(EXCEL_PATH, sheet_name=SHEET_NAME)
     print(f"  Loaded {len(df)} varietal wines")
 
-    # Normalize type names before grouping
     df['Type'] = df['Type'].replace(TYPE_NAMES)
-
-    # Parse food pairings once up front
     df['pairings_parsed'] = df['Food_Pairings'].apply(parse_pairings)
 
-    # Set up DB connection
     engine = create_engine(f'sqlite:///{DB_PATH}', echo=False)
     Session = sessionmaker(bind=engine)
     session = Session()
 
-    # Wipe any existing data in grape_standard to make this script idempotent
+    # Wipe existing rows so re-running produces identical state.
     deleted = session.query(GrapeStandard).delete()
     session.commit()
     if deleted:
@@ -132,7 +106,6 @@ def main():
         avg_body    = round(group['Body_Numeric'].mean(), 2)
         avg_acidity = round(group['Acidity_Numeric'].mean(), 2)
 
-        # Union of all unique pairings across this group's wines
         unique_pairings = set()
         for plist in group['pairings_parsed']:
             unique_pairings.update(plist)

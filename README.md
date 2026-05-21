@@ -30,7 +30,7 @@ BlindTaste uses **content-based filtering** with Euclidean distance:
 similarity = max(0, (1 - d / max_d) × 100)
 ```
 
-where `max_d` is the **actual maximum distance** across all candidates in the filtered pool. This means the worst match in the pool always scores 0% and the best always scores 100%, spreading results naturally across the real data range. Using a theoretical maximum (e.g. `√n`) would compress all scores above 90% because real centroids cluster in a narrow region of the feature space.
+where `max_d` is the **actual maximum distance** across all candidates in the filtered pool. This means the worst match in the pool always scores 0% and the best is the highest percentage, spreading results naturally across the real data range. Using a theoretical maximum (e.g. `√n`) would compress all scores above 90% because real centroids cluster in a narrow region of the feature space.
 
 5. The top 5 closest centroids are returned, ranked by similarity.
 
